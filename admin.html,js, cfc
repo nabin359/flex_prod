@@ -1,0 +1,2395 @@
+admin.html
+
+
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Flex Time Admin Dashboard</title>
+
+  <!-- Tailwind JIT -->
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+
+  <!-- Axios, Vue (ESM), Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <!-- Global CSS -->
+  <link rel="stylesheet" href="/ref/styles/global.css" />
+
+  <style>
+    body {
+      margin: 0;
+      background: #f1f5f9;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+    }
+
+    /* Header bar */
+    header {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      background: #fff;
+      border-bottom: 1px solid #e5e7eb;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, .05);
+      z-index: 50;
+    }
+
+    main {
+      padding-top: 5rem;
+    }
+
+    .usps-blue {
+      background-color: #3B6E8F;
+    }
+
+    /* Card look */
+    .card {
+      background: #fff;
+      border-radius: 1rem;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
+    }
+
+    /* Chart height compact so Summary + Chart are visible together */
+    .chart-wrap {
+      height: 14rem;
+    }
+
+    /* Table improvements */
+    .tbl-wrap {
+      overflow: auto;
+      position: relative
+    }
+
+    table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      table-layout: fixed;
+    }
+
+    thead th {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+
+    thead th .th-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: .5rem;
+    }
+
+    thead th button.filter-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 22px;
+      height: 22px;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.12);
+      color: #fff;
+      border: 1px solid rgba(255, 255, 255, 0.28);
+    }
+
+    thead th button.filter-btn:hover {
+      background: rgba(255, 255, 255, 0.2);
+    }
+
+    thead th,
+    tbody td {
+      padding: .55rem .65rem;
+    }
+
+    tbody tr:nth-child(odd) {
+      background: #fbfdff;
+    }
+
+    tbody tr:hover {
+      background: #f5f9ff;
+    }
+
+    /* Column widths */
+    th.col-id,
+    td.col-id {
+      width: 70px;
+    }
+
+    th.col-facility,
+    td.col-facility {
+      width: 70px;
+    }
+
+    /* th.col-area,        td.col-area        { width: 120px; }
+    th.col-cluster,     td.col-cluster     { width: 140px; }
+    th.col-mpoo,        td.col-mpoo        { width: 70px; } */
+    th.col-facname,
+    td.col-facname {
+      width: 140px;
+    }
+
+    th.col-hours,
+    td.col-hours {
+      width: 80px;
+    }
+
+    th.col-craft,
+    td.col-craft {
+      width: 100px;
+    }
+
+    th.col-ldc,
+    td.col-ldc {
+      width: 100px;
+    }
+
+    th.col-opnum,
+    td.col-opnum {
+      width: 100px;
+    }
+
+    /* th.col-just,        td.col-just        { width: 260px; } */
+    th.col-start,
+    td.col-start {
+      width: 100px;
+    }
+
+    th.col-end,
+    td.col-end {
+      width: 100px;
+    }
+
+    th.col-userid,
+    td.col-userid {
+      width: 100px;
+    }
+
+    th.col-username,
+    td.col-username {
+      width: 170px;
+    }
+
+    th.col-on,
+    td.col-on {
+      width: 140px;
+    }
+
+    th.col-status,
+    td.col-status {
+      width: 130px;
+    }
+
+    /* th.col-comment,     td.col-comment     { width: 200px; } */
+    th.col-chby,
+    td.col-chby {
+      width: 100px;
+    }
+
+    th.col-chdt,
+    td.col-chdt {
+      width: 140px;
+    }
+
+    th.col-actions,
+    td.col-actions {
+      width: 150px;
+    }
+
+    .cell-ellipsis {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* Status chips */
+    .chip {
+      display: inline-block;
+      padding: .2rem .5rem;
+      border-radius: 999px;
+      font-size: .75rem;
+      font-weight: 600;
+    }
+
+    .chip-pending {
+      background: #dbeafe;
+      color: #1e3a8a;
+    }
+
+    .chip-approved {
+      background: #dcfce7;
+      color: #14532d;
+    }
+
+    .chip-declined {
+      background: #fee2e2;
+      color: #7f1d1d;
+    }
+
+    .chip-modify {
+      background: #fef3c7;
+      color: #92400e;
+    }
+
+    .chip-default {
+      background: #f3f4f6;
+      color: #111827;
+    }
+
+    /* Excel-style filter popover */
+    .filter-pop {
+      position: absolute;
+      z-index: 60;
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      border-radius: 10px;
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.12);
+      width: 260px;
+      padding: 12px;
+      animation: pop .12s ease;
+    }
+
+    .filter-pop h4 {
+      font-size: 12px;
+      font-weight: 700;
+      margin: 2px 0 8px;
+      color: #374151;
+      letter-spacing: .02em;
+    }
+
+    .filter-pop .row {
+      display: flex;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    @keyframes pop {
+      from {
+        transform: translateY(-3px);
+        opacity: 0;
+      }
+
+      to {
+        transform: translateY(0);
+        opacity: 1;
+      }
+    }
+
+    /* Compact & shrink toggles */
+    .compact table {
+      font-size: 12px;
+    }
+
+    .shrink {
+      transform: scale(0.93);
+      transform-origin: top left;
+      width: 107.5%;
+    }
+
+    /* Glassy overlay for modal backdrop */
+    .glass-overlay {
+      background: rgba(0, 0, 0, 0.28);
+      backdrop-filter: blur(4px) saturate(120%);
+      -webkit-backdrop-filter: blur(4px) saturate(120%);
+    }
+
+    /* Themed modal shell */
+    .modal-card {
+      background: #ffffff;
+      border-radius: 1rem;
+      box-shadow: 0 18px 50px rgba(0, 0, 0, .18);
+      border: 1px solid #e5e7eb;
+    }
+
+    .modal-head {
+      background: linear-gradient(135deg, #3B6E8F 0%, #2f5b73 100%);
+      color: #fff;
+    }
+
+    .modal-head h3 {
+      letter-spacing: .2px;
+    }
+
+    .modal-divider {
+      border-top: 1px solid rgba(59, 110, 143, .15);
+    }
+
+    .modal-actions {
+      background: rgba(255, 255, 255, .85);
+      backdrop-filter: blur(2px);
+    }
+
+    /* Toast */
+    .toast {
+      position: fixed;
+      right: 20px;
+      bottom: 20px;
+      z-index: 1000;
+      padding: 12px 14px;
+      border-radius: 10px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, .18);
+      color: #0f172a;
+      display: none;
+    }
+
+    .toast.show {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .toast-success {
+      background: #dcfce7;
+      border: 1px solid #16a34a33;
+    }
+
+    .toast-error {
+      background: #fee2e2;
+      border: 1px solid #ef444433;
+    }
+
+    .toast-info {
+      background: #e0f2fe;
+      border: 1px solid #38bdf833;
+    }
+
+    /* Horizontal scroll helpers */
+    .hscroll-btn {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 40px;
+      height: 40px;
+      border-radius: 9999px;
+      background: rgba(255, 255, 255, 0.98);
+      border: 1px solid #e5e7eb;
+      box-shadow: 0 6px 18px rgba(0, 0, 0, .18);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      cursor: pointer;
+    }
+
+    .hscroll-btn.left {
+      left: 8px;
+    }
+
+    .hscroll-btn.right {
+      right: 8px;
+    }
+
+    .hscroll-btn:hover {
+      background: #fff;
+    }
+
+    .hscroll-btn.is-disabled {
+      opacity: .28;
+      pointer-events: none;
+    }
+
+    .hscroll-fade {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 36px;
+      pointer-events: none;
+      z-index: 9998;
+    }
+
+    .hscroll-fade.left {
+      left: 0;
+      background: linear-gradient(to right, rgba(255, 255, 255, 1), rgba(255, 255, 255, 0));
+    }
+
+    .hscroll-fade.right {
+      right: 0;
+      background: linear-gradient(to left, rgba(255, 255, 255, 1), rgba(255, 255, 255, 0));
+    }
+  </style>
+</head>
+
+<body>
+  <div id="dashboardApp" class="w-full p-6">
+    <!-- Top Nav -->
+    <header>
+      <div class="w-full px-14 py-0 flex items-center justify-between">
+        <div class="flex items-center space-x-2">
+          <a href="https://eagnmnwbc1db.usps.gov/" class="flex items-center space-x-2 hover:opacity-80 transition">
+            <img src="https://eagnmnwbp161f.usps.gov/rework/assets/EIR_logo_color.png" alt="EIR Logo"
+              class="h-16 w-16 object-contain" />
+            <span class="text-2xl font-semibold text-gray-700">| Workhour Analytics</span>
+          </a>
+        </div>
+        <div class="flex items-center justify-between space-x-6">
+          <a href="/ref/toolbox/flex/index.html"
+            class="px-4 py-2 bg-[#3B6E8F] text-white rounded-lg font-semibold shadow hover:bg-blue-500 transition">
+            + New Flex Request
+          </a>
+          <div class="flex items-center space-x-4 text-lg text-gray-700 font-medium">
+            {{ userDisplayHeader }}
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main class="flex-1 w-full">
+      <div class="w-full px-6">
+
+        <!-- Breadcrumb -->
+        <nav class="text-gray-600 text-md font-semibold rounded-2xl card p-6 mb-6 -mt-12" aria-label="Breadcrumb">
+          <ol class="flex items-center space-x-2">
+            <li>
+              <a href="https://eagnmnwbp161f.usps.gov/" class="flex items-center hover:text-blue-700 transition">
+                <svg class="w-4 h-4 mr-1 text-gray-700" fill="none" stroke="currentColor" stroke-width="2"
+                  viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M3 12l9-9 9 9M9 21V10h6v11" />
+                </svg>
+                WEMS Home
+              </a>
+            </li>
+            <li>
+              <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"
+                stroke-linecap="round" stroke-linejoin="round">
+                <path d="M9 5l7 7-7 7" />
+              </svg>
+            </li>
+            <li class="text-blue-800 font-semibold">Flex Time Admin Dashboard</li>
+          </ol>
+        </nav>
+
+        <!-- Info Banner with Facility Popover -->
+        <div class="usps-blue text-white rounded-xl shadow-md p-8 mb-6 relative" ref="bannerWrap">
+          <h1 class="text-3xl font-bold tracking-tight">Flex Time Request</h1>
+
+          <p class="mt-2 text-base flex flex-wrap items-center gap-2">
+            <span class="font-semibold">Office/Facility:</span>
+            <span class="font-semibold">{{ officeName || '—' }}</span>
+
+            <!-- Show picker when more than 1 facility -->
+            <button v-if="facilities.length > 1" type="button"
+              class="ml-2 inline-flex items-center px-2 py-1 text-xs font-semibold rounded bg-white/15 hover:bg-white/25"
+              @click.stop="openBannerMenu($event)" title="View all facilities">
+              View all ({{ facilities.length }})
+            </button>
+
+            <span class="hidden sm:inline">&nbsp;&nbsp;•&nbsp;&nbsp;</span>
+            <span class="font-semibold">Fiscal Year:</span> <span class="font-semibold">{{ fiscalYear || '—' }}</span>
+
+            <span class="hidden sm:inline">&nbsp;&nbsp;•&nbsp;&nbsp;</span>
+            <span class="font-semibold">Week:</span> <span class="font-semibold">{{ week || '—' }}</span>
+          </p>
+
+          <!-- Facilities popover -->
+          <div v-if="bannerMenu.open" ref="bannerMenuRef"
+            class="absolute z-[100] bg-white text-gray-800 rounded-lg shadow-2xl border border-gray-200 w-80 p-3"
+            :style="{ top: bannerMenu.y + 'px', left: bannerMenu.x + 'px' }">
+            <div class="text-sm font-semibold text-gray-600 mb-2">Your Facilities</div>
+            <ul class="max-h-64 overflow-auto divide-y divide-gray-100">
+              <li v-for="f in facilities" :key="f.B_FIN_NBR" class="py-2">
+                <button class="w-full text-left hover:bg-gray-50 rounded px-2 py-1" @click="gotoFacility(f)"
+                  :title="(f.B_FIN_NAME || '') + ' (' + (f.B_FIN_NBR || '') + ')'">
+                  <div class="text-sm font-medium">{{ f.B_FIN_NAME }}</div>
+                  <div class="text-xs text-gray-500">FIN: {{ f.B_FIN_NBR }}</div>
+                </button>
+              </li>
+            </ul>
+            <div class="mt-2 text-right">
+              <button class="px-3 py-1 text-sm rounded bg-gray-100 hover:bg-gray-200"
+                @click="bannerMenu.open=false">Close</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Summary KPIs -->
+        <section class="card p-6 mb-6">
+          <h2 class="text-lg font-semibold text-gray-700 mb-4">Summary</h2>
+          <div class="grid grid-cols-2 sm:grid-cols-5 gap-4">
+            <div class="text-center bg-slate-50 rounded-lg p-3 border border-slate-100">
+              <div class="text-gray-500 text-sm">Total Requests</div>
+              <div class="text-2xl font-bold">{{ fmt(metrics.TOTAL) }}</div>
+            </div>
+            <div class="text-center bg-slate-50 rounded-lg p-3 border border-slate-100">
+              <div class="text-gray-500 text-sm">Pending</div>
+              <div class="text-2xl font-bold">{{ fmt(metrics.PENDING) }}</div>
+            </div>
+            <div class="text-center bg-slate-50 rounded-lg p-3 border border-slate-100">
+              <div class="text-gray-500 text-sm">Approved</div>
+              <div class="text-2xl font-bold">{{ fmt(metrics.APPROVED) }}</div>
+            </div>
+            <div class="text-center bg-slate-50 rounded-lg p-3 border border-slate-100">
+              <div class="text-gray-500 text-sm">Request Modification</div>
+              <div class="text-2xl font-bold">{{ fmt(metrics.MODIFICATION) }}</div>
+            </div>
+            <div class="text-center bg-slate-50 rounded-lg p-3 border border-slate-100">
+              <div class="text-gray-500 text-sm">Declined</div>
+              <div class="text-2xl font-bold">{{ fmt(metrics.DECLINED) }}</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Status Chart -->
+        <div class="card p-6 mb-8">
+          <h2 class="text-xl font-semibold text-blue-800 mb-2">Request Status Chart</h2>
+          <div class="chart-wrap"><canvas id="trendChart"></canvas></div>
+        </div>
+
+        <!-- Requests Table -->
+        <div class="card p-4 mb-8" :class="[{ compact: compactView }, { shrink: shrinkToFit }]">
+          <div class="flex items-center justify-between mb-3">
+            <h2 class="text-xl font-semibold text-blue-800">All Flex-Time Requests</h2>
+            <div class="flex items-center gap-3">
+              <label class="inline-flex items-center gap-2 text-sm">
+                <input type="checkbox" v-model="compactView" />
+                <span>Compact view</span>
+              </label>
+              <label class="inline-flex items-center gap-2 text-sm">
+                <input type="checkbox" v-model="shrinkToFit" />
+                <span>Shrink to fit</span>
+              </label>
+              <button @click="exportTableToCSV"
+                class="px-3 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition text-sm">
+                📥 Export to CSV
+              </button>
+            </div>
+          </div>
+
+          <div class="tbl-wrap relative" ref="tblWrap">
+            <table>
+              <thead>
+                <tr style="background:#3B6E8F; color:#fff;">
+                  <th class="col-id">
+                    <div class="th-inner">
+                      <span class="font-semibold">ID</span>
+                      <button class="filter-btn" @click.stop="openFilterMenu('REQUESTID', $event)" title="Filter">
+                        <svg width="14" height="14" viewBox="0 0 24 24">
+                          <path fill="currentColor" d="M3 4h18l-7 8v6l-4 2v-8z" />
+                        </svg>
+                      </button>
+                    </div>
+                  </th>
+
+                  <th class="col-facility">
+                    <div class="th-inner">
+                      <span class="font-semibold">Facility</span>
+                      <button class="filter-btn" @click.stop="openFilterMenu('FACILITYID', $event)" title="Filter">
+                        <svg width="14" height="14" viewBox="0 0 24 24">
+                          <path fill="currentColor" d="M3 4h18l-7 8v6l-4 2v-8z" />
+                        </svg>
+                      </button>
+                    </div>
+                  </th>
+
+                  <th class="col-facname">
+                    <div class="th-inner">
+                      <span class="font-semibold">Facility Name</span>
+                      <button class="filter-btn" @click.stop="openFilterMenu('FACILITYNAME', $event)" title="Filter">
+                        <svg width="14" height="14" viewBox="0 0 24 24">
+                          <path fill="currentColor" d="M3 4h18l-7 8v6l-4 2v-8z" />
+                        </svg>
+                      </button>
+                    </div>
+                  </th>
+
+                  <!-- <th class="col-area">
+                    <div class="th-inner">
+                      <span class="font-semibold">Area</span>
+                      <button class="filter-btn" @click.stop="openFilterMenu('AREA', $event)" title="Filter">
+                        <svg width="14" height="14" viewBox="0 0 24 24"><path fill="currentColor" d="M3 4h18l-7 8v6l-4 2v-8z"/></svg>
+                      </button>
+                    </div>
+                  </th>
+
+                  <th class="col-cluster">
+                    <div class="th-inner">
+                      <span class="font-semibold">Cluster</span>
+                      <button class="filter-btn" @click.stop="openFilterMenu('CLUSTER', $event)" title="Filter">
+                        <svg width="14" height="14" viewBox="0 0 24 24"><path fill="currentColor" d="M3 4h18l-7 8v6l-4 2v-8z"/></svg>
+                      </button>
+                    </div>
+                  </th>
+
+                  <th class="col-mpoo">
+                    <div class="th-inner">
+                      <span class="font-semibold">MPOO</span>
+                      <button class="filter-btn" @click.stop="openFilterMenu('MPOO', $event)" title="Filter">
+                        <svg width="14" height="14" viewBox="0 0 24 24"><path fill="currentColor" d="M3 4h18l-7 8v6l-4 2v-8z"/></svg>
+                      </button>
+                    </div>
+                  </th> -->
+
+                  <th class="col-hours">
+                    <div class="th-inner">
+                      <span class="font-semibold">Hours</span>
+                      <button class="filter-btn" @click.stop="openFilterMenu('HOURSPERWEEK', $event)" title="Filter">
+                        <svg width="14" height="14" viewBox="0 0 24 24">
+                          <path fill="currentColor" d="M3 4h18l-7 8v6l-4 2v-8z" />
+                        </svg>
+                      </button>
+                    </div>
+                  </th>
+
+                  <th class="col-craft">
+                    <div class="th-inner">
+                      <span class="font-semibold">Craft</span>
+                      <button class="filter-btn" @click.stop="openFilterMenu('CRAFT', $event)" title="Filter">
+                        <svg width="14" height="14" viewBox="0 0 24 24">
+                          <path fill="currentColor" d="M3 4h18l-7 8v6l-4 2v-8z" />
+                        </svg>
+                      </button>
+                    </div>
+                  </th>
+
+                  <th class="col-ldc">
+                    <div class="th-inner">
+                      <span class="font-semibold">Labor Distribution Code</span>
+                      <button class="filter-btn" @click.stop="openFilterMenu('LABOURDISTRIBUTIONCODE', $event)"
+                        title="Filter">
+                        <svg width="14" height="14" viewBox="0 0 24 24">
+                          <path fill="currentColor" d="M3 4h18l-7 8v6l-4 2v-8z" />
+                        </svg>
+                      </button>
+                    </div>
+                  </th>
+
+                  <th class="col-opnum">
+                    <div class="th-inner">
+                      <span class="font-semibold">Operation Number</span>
+                      <button class="filter-btn" @click.stop="openFilterMenu('OPERATIONNUMBER', $event)" title="Filter">
+                        <svg width="14" height="14" viewBox="0 0 24 24">
+                          <path fill="currentColor" d="M3 4h18l-7 8v6l-4 2v-8z" />
+                        </svg>
+                      </button>
+                    </div>
+                  </th>
+
+                  <!-- <th class="col-just">
+                    <div class="th-inner">
+                      <span class="font-semibold">Justification</span>
+                      <button class="filter-btn" @click.stop="openFilterMenu('JUSTIFICATION', $event)" title="Filter">
+                        <svg width="14" height="14" viewBox="0 0 24 24"><path fill="currentColor" d="M3 4h18l-7 8v6l-4 2v-8z"/></svg>
+                      </button>
+                    </div>
+                  </th> -->
+
+                  <th class="col-start">
+                    <div class="th-inner">
+                      <span class="font-semibold">Start</span>
+                      <button class="filter-btn" @click.stop="openFilterMenu('STARTDATE', $event)" title="Filter">
+                        <svg width="14" height="14" viewBox="0 0 24 24">
+                          <path fill="currentColor" d="M3 4h18l-7 8v6l-4 2v-8z" />
+                        </svg>
+                      </button>
+                    </div>
+                  </th>
+
+                  <th class="col-end">
+                    <div class="th-inner">
+                      <span class="font-semibold">End</span>
+                      <button class="filter-btn" @click.stop="openFilterMenu('ENDDATE', $event)" title="Filter">
+                        <svg width="14" height="14" viewBox="0 0 24 24">
+                          <path fill="currentColor" d="M3 4h18l-7 8v6l-4 2v-8z" />
+                        </svg>
+                      </button>
+                    </div>
+                  </th>
+
+                  <th class="col-userid">
+                    <div class="th-inner">
+                      <span class="font-semibold">USER ID</span>
+                      <button class="filter-btn" @click.stop="openFilterMenu('CREATEDBY', $event)" title="Filter">
+                        <svg width="14" height="14" viewBox="0 0 24 24">
+                          <path fill="currentColor" d="M3 4h18l-7 8v6l-4 2v-8z" />
+                        </svg>
+                      </button>
+                    </div>
+                  </th>
+
+                  <th class="col-username">
+                    <div class="th-inner">
+                      <span class="font-semibold">User Name</span>
+                      <button class="filter-btn" @click.stop="openFilterMenu('USER_NAME', $event)" title="Filter">
+                        <svg width="14" height="14" viewBox="0 0 24 24">
+                          <path fill="currentColor" d="M3 4h18l-7 8v6l-4 2v-8z" />
+                        </svg>
+                      </button>
+                    </div>
+                  </th>
+
+                  <th class="col-on">
+                    <div class="th-inner">
+                      <span class="font-semibold">On</span>
+                      <button class="filter-btn" @click.stop="openFilterMenu('CREATEDON', $event)" title="Filter">
+                        <svg width="14" height="14" viewBox="0 0 24 24">
+                          <path fill="currentColor" d="M3 4h18l-7 8v6l-4 2v-8z" />
+                        </svg>
+                      </button>
+                    </div>
+                  </th>
+
+                  <th class="col-status">
+                    <div class="th-inner">
+                      <span class="font-semibold">Status</span>
+                      <button class="filter-btn" @click.stop="openFilterMenu('STATUS', $event)" title="Filter">
+                        <svg width="14" height="14" viewBox="0 0 24 24">
+                          <path fill="currentColor" d="M3 4h18l-7 8v6l-4 2v-8z" />
+                        </svg>
+                      </button>
+                    </div>
+                  </th>
+
+                  <!-- <th class="col-comment">
+                    <div class="th-inner">
+                      <span class="font-semibold">Comment</span>
+                      <button class="filter-btn" @click.stop="openFilterMenu('COMMENT', $event)" title="Filter">
+                        <svg width="14" height="14" viewBox="0 0 24 24"><path fill="currentColor" d="M3 4h18l-7 8v6l-4 2v-8z"/></svg>
+                      </button>
+                    </div>
+                  </th> -->
+
+                  <th class="col-chby">
+                    <div class="th-inner">
+                      <span class="font-semibold">Changed By</span>
+                      <button class="filter-btn" @click.stop="openFilterMenu('CHANGEDBY', $event)" title="Filter">
+                        <svg width="14" height="14" viewBox="0 0 24 24">
+                          <path fill="currentColor" d="M3 4h18l-7 8v6l-4 2v-8z" />
+                        </svg>
+                      </button>
+                    </div>
+                  </th>
+
+                  <th class="col-chdt">
+                    <div class="th-inner">
+                      <span class="font-semibold">Changed Date</span>
+                      <button class="filter-btn" @click.stop="openFilterMenu('CHANGEDDATE', $event)" title="Filter">
+                        <svg width="14" height="14" viewBox="0 0 24 24">
+                          <path fill="currentColor" d="M3 4h18l-7 8v6l-4 2v-8z" />
+                        </svg>
+                      </button>
+                    </div>
+                  </th>
+
+                  <th class="col-actions"><span class="font-semibold">View Record</span></th>
+                </tr>
+              </thead>
+
+              <tbody>
+                <!-- NOTE: Using filteredRequests (not paginated) to preserve current behavior -->
+                <tr v-for="req in filteredRequests" :key="req.REQUESTID" class="border-t">
+                  <td class="col-id">{{ req.REQUESTID }}</td>
+                  <td class="col-facility">{{ req.FACILITYID }}</td>
+                  <td class="col-facname cell-ellipsis" :title="req.FACILITYNAME">{{ req.FACILITYNAME }}</td>
+                  <td class="col-area cell-ellipsis" :title="req.AREA">{{ req.AREA }}</td>
+                  <td class="col-cluster cell-ellipsis" :title="req.CLUSTER">{{ req.CLUSTER }}</td>
+                  <td class="col-mpoo cell-ellipsis" :title="req.MPOO">{{ req.MPOO }}</td>
+                  <td class="col-hours">{{ req.HOURSPERWEEK }}</td>
+                  <td class="col-craft">{{ req.CRAFT }}</td>
+                  <td class="col-ldc">{{ req.LABOURDISTRIBUTIONCODE }}</td>
+                  <td class="col-opnum">{{ req.OPERATIONNUMBER }}</td>
+                  <td class="col-just cell-ellipsis" :title="req.JUSTIFICATION">{{ req.JUSTIFICATION }}</td>
+                  <td class="col-start">{{ req.STARTDATE }}</td>
+                  <td class="col-end">{{ req.ENDDATE }}</td>
+                  <td class="col-userid">{{ req.CREATEDBY }}</td>
+                  <td class="col-username">{{ req.USER_FNAME }} {{ req.USER_LNAME }}</td>
+                  <td class="col-on">{{ req.CREATEDON }}</td>
+                  <td class="col-status"><span :class="statusClass(req.STATUS)">{{ req.STATUS }}</span></td>
+                  <td class="col-comment cell-ellipsis" :title="req.COMMENT">{{ req.COMMENT }}</td>
+                  <td class="col-chby">{{ req.CHANGEDBY }}</td>
+                  <td class="col-chdt">{{ req.CHANGEDDATE }}</td>
+                  <td class="col-actions">
+                    <button @click.prevent="selectRequest(req)"
+                      class="px-3 py-1.5 bg-[#17a2b8] text-white text-sm rounded-md shadow hover:bg-blue-500 transition">
+                      View / Validate
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+
+            <!-- Excel-style filter popover -->
+            <div v-if="filterMenu.open" class="filter-pop"
+              :style="{ left: filterMenu.x + 'px', top: filterMenu.y + 'px' }" ref="filterMenuRef">
+              <h4>Filter: {{ filterMenu.field }}</h4>
+
+              <!-- STATUS uses dropdown -->
+              <template v-if="filterMenu.field === 'STATUS'">
+                <select class="w-full border rounded px-2 py-1 text-sm" :value="filters.STATUS"
+                  @change="onStatusChange($event)">
+                  <option value="">(All)</option>
+                  <option v-for="opt in statusOptions" :key="opt" :value="opt">{{ opt }}</option>
+                </select>
+              </template>
+
+              <!-- All other columns: contains text -->
+              <template v-else>
+                <input v-model="filters[filterMenu.field]" class="w-full border rounded px-2 py-1 text-sm"
+                  placeholder="Type to filter…" />
+              </template>
+
+              <div class="row">
+                <button class="px-2 py-1 text-xs bg-gray-100 rounded hover:bg-gray-200"
+                  @click.stop="clearFilter(filterMenu.field)">
+                  Clear
+                </button>
+                <button class="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
+                  @click.stop="filterMenu.open=false">
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Modal: view/validate/update -->
+        <transition name="modal">
+          <div v-if="showingModal" class="fixed inset-0 glass-overlay flex items-center justify-center z-50">
+            <div
+              class="relative modal-card w-full max-w-7xl min-h-[75vh] max-h-[95vh] p-0 transform transition-transform duration-300 scale-100 flex flex-col overflow-hidden">
+
+              <!-- Close button -->
+              <button @click="closeModal" class="absolute top-4 right-4 text-gray-500 hover:text-gray-700"
+                aria-label="Close">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24"
+                  stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+
+              <!-- Title -->
+              <div class="modal-head px-12 pt-10 pb-5">
+                <h3 class="text-2xl font-semibold">Request #{{ selectedRequest?.REQUESTID }}</h3>
+              </div>
+              <div class="modal-divider"></div>
+
+              <!-- Body -->
+              <div class="flex-1 overflow-y-auto px-12 pb-6">
+                <!-- Toggle Edit -->
+                <div class="mb-4">
+                  <label class="inline-flex items-center gap-2">
+                    <input type="checkbox" v-model="isEditing" class="rounded">
+                    <span>Enable editing of request fields</span>
+                  </label>
+                </div>
+
+                <!-- Read View -->
+                <div v-if="!isEditing" class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                  <div class="border rounded-md p-4 bg-white shadow-sm">
+                    <p><strong>Facility:</strong> {{ selectedRequest?.FACILITYID }}</p>
+                  </div>
+                  <div class="border rounded-md p-4 bg-white shadow-sm">
+                    <p><strong>Facility Name:</strong> {{ selectedRequest?.FACILITYNAME }}</p>
+                  </div>
+                  <div class="border rounded-md p-4 bg-white shadow-sm">
+                    <p><strong>Craft:</strong> {{ selectedRequest?.CRAFT }}</p>
+                  </div>
+                  <div class="border rounded-md p-4 bg-white shadow-sm">
+                    <p><strong>Hours / Week:</strong> {{ selectedRequest?.HOURSPERWEEK }}</p>
+                  </div>
+                  <div class="border rounded-md p-4 bg-white shadow-sm">
+                    <p><strong>LDC:</strong> {{ selectedRequest?.LABOURDISTRIBUTIONCODE }}</p>
+                  </div>
+                  <div class="border rounded-md p-4 bg-white shadow-sm">
+                    <p><strong>Operation #:</strong> {{ selectedRequest?.OPERATIONNUMBER }}</p>
+                  </div>
+                  <div class="border rounded-md p-4 bg-white shadow-sm md:col-span-3">
+                    <p><strong>Dates:</strong> {{ selectedRequest?.STARTDATE }} → {{ selectedRequest?.ENDDATE }}</p>
+                  </div>
+                  <div class="md:col-span-3 border rounded-md p-4 bg-white shadow-sm">
+                    <p><strong>Justification:</strong></p>
+                    <p class="whitespace-pre-line">{{ selectedRequest?.JUSTIFICATION }}</p>
+                  </div>
+                  <div class="md:col-span-3" v-if="selectedRequest?.ATTACHMENTURL">
+                    <p><strong>Attachment:</strong></p>
+                    <a :href="selectedRequest.ATTACHMENTURL" target="_blank" class="text-blue-600 underline"
+                      :download="selectedRequest.ATTACHMENTNAME || null">
+                      Download {{ selectedRequest.ATTACHMENTNAME || 'attachment' }}
+                    </a>
+                  </div>
+                </div>
+
+                <!-- Edit View -->
+                <div v-else class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                  <div>
+                    <label class="font-semibold">Facility</label>
+                    <input v-model="editForm.facilityID" class="w-full border rounded p-2" />
+                  </div>
+                  <div>
+                    <label class="font-semibold">Craft</label>
+                    <select v-model="editForm.craft" class="w-full border rounded p-2">
+                      <option>clerk</option>
+                      <option>mailhandler</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label class="font-semibold">Hours / Week</label>
+                    <input type="number" step="0.01" v-model.number="editForm.hoursPerWeek"
+                      class="w-full border rounded p-2" />
+                  </div>
+                  <div>
+                    <label class="font-semibold">LDC</label>
+                    <input v-model.number="editForm.ldc" class="w-full border rounded p-2" />
+                  </div>
+                  <div>
+                    <label class="font-semibold">Operation #</label>
+                    <input v-model="editForm.operationNumber" class="w-full border rounded p-2" />
+                  </div>
+                  <div>
+                    <label class="font-semibold">Start Date</label>
+                    <input type="date" v-model="editForm.startDate" class="w-full border rounded p-2" />
+                  </div>
+                  <div>
+                    <label class="font-semibold">End Date</label>
+                    <input type="date" v-model="editForm.endDate" class="w-full border rounded p-2" />
+                  </div>
+                  <div class="md:col-span-3">
+                    <label class="font-semibold">Justification</label>
+                    <textarea v-model="editForm.justification" rows="4" class="w-full border rounded p-2"></textarea>
+                  </div>
+                  <div class="md:col-span-3" v-if="selectedRequest?.ATTACHMENTURL">
+                    <strong>Attachment:</strong>
+                    <a :href="selectedRequest.ATTACHMENTURL" target="_blank"
+                      class="text-blue-600 underline">Download</a>
+                  </div>
+                </div>
+
+                <!-- Quick Comment -->
+                <div class="mb-4">
+                  <label class="block font-semibold mb-1">Quick Comment</label>
+                  <select class="w-full border rounded p-2" v-model="selectedComment" @change="onQuickCommentChange">
+                    <option value="" disabled>— Select a quick comment —</option>
+                    <option value="NO SUPPORTING DOCUMENTATION">NO SUPPORTING DOCUMENTATION</option>
+                    <option value="MULTIPLE REQUESTS">MULTIPLE REQUESTS</option>
+                    <option value="SPACE CONSTRAINTS">SPACE CONSTRAINTS</option>
+                    <option value="NOT UNIQUE">NOT UNIQUE</option>
+                    <option value="ALREADY COVERED">ALREADY COVERED</option>
+                    <option value="SCF/HUB">SCF/HUB</option>
+                    <option value="DROP SHIPMENT ISSUES">DROP SHIPMENT ISSUES</option>
+                    <option value="LEVEL 18">LEVEL 18</option>
+                    <option value="SCHEDULING/ COMPLEMENT ISSUES">SCHEDULING/ COMPLEMENT ISSUES</option>
+                    <option value="OTHER">Other (type your own)</option>
+                  </select>
+                </div>
+
+                <div v-show="selectedComment" class="mb-4">
+                  <label class="block font-semibold">Comment</label>
+                  <textarea v-model="actionComment" rows="4" ref="otherCommentBox" class="w-full border rounded p-2"
+                    placeholder="Type your custom note…"></textarea>
+                </div>
+
+                <div v-if="processStatus" class="text-green-600 mt-2">{{ processStatus }}</div>
+              </div>
+
+              <!-- Actions -->
+              <div class="sticky bottom-0 bg-white border-t px-12 py-4 flex flex-wrap gap-2 justify-start">
+                <button @click="updateStatus('Approved')"
+                  class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">Approve</button>
+                <button @click="updateStatus('Declined')"
+                  class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">Decline</button>
+                <button @click="updateStatus('Modify')"
+                  class="px-4 py-2 bg-yellow-500 text-white rounded hover:bg-yellow-600">Request Modification</button>
+                <button v-if="isEditing" @click="saveFieldEdits"
+                  class="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700">Save Changes</button>
+              </div>
+            </div>
+          </div>
+        </transition>
+      </div>
+    </main>
+  </div>
+
+  <!-- Lightweight toast -->
+  <div id="ft-toast" class="toast toast-success">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+      <path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+    </svg>
+    <span id="ft-toast-text">Saved.</span>
+  </div>
+
+  <!-- Page script -->
+  <script type="module" src="/ref/toolbox/flex/admin.js"></script>
+</body>
+
+</html>
+
+
+
+
+
+
+
+
+
+
+
+admin.js:
+
+
+// /rework/flex_time/admin.js
+import { createApp } from 'https://unpkg.com/vue@3.5.13/dist/vue.esm-browser.js';
+
+createApp({
+  data() {
+    return {
+      serviceFolder: '/ref/api/v1/toolbox/flex/',
+
+      // header
+      userDisplayHeader: '',
+      officeName: '',
+      fiscalYear: '',
+      week: '',
+      facilities: [],                       // list of facilities user can access
+      bannerMenu: { open: false, x: 0, y: 0 }, // banner popover placement
+      userAceid: '',
+      isAllowed: false,
+      denyReason: "",
+
+      // metrics + chart
+      metrics: { TOTAL: 0, PENDING: 0, APPROVED: 0, MODIFICATION: 0, DECLINED: 0 },
+      statusChart: null,
+
+      // requests + filters
+      flexRequests: [],
+      statusOptions: [],
+      filters: {
+        REQUESTID: '',
+        FACILITYID: '',
+        AREA: '',
+        CLUSTER: '',
+        MPOO: '',
+        HOURSPERWEEK: '',
+        CRAFT: '',
+        LABOURDISTRIBUTIONCODE: '',
+        OPERATIONNUMBER: '',
+        JUSTIFICATION: '',
+        STARTDATE: '',
+        ENDDATE: '',
+        CREATEDBY: '',
+        USER_NAME: '',
+        CREATEDON: '',
+        STATUS: '',
+        COMMENT: '',
+        CHANGEDBY: '',
+        CHANGEDDATE: ''
+      },
+
+      pageSize: 20,   //adding paging on the admin flex request table
+      currentPage: 1,
+
+      // UI: compact table + shrink to fit
+      compactView: true,
+      shrinkToFit: false,
+
+      // Modal + edit
+      showingModal: false,
+      selectedRequest: null,
+      isEditing: false,
+      editForm: {
+        requestID: null,
+        facilityID: '',
+        craft: '',
+        ldc: null,
+        operationNumber: '',
+        hoursPerWeek: null,
+        justification: '',
+        startDate: '',
+        endDate: '',
+        status: ''
+      },
+      selectedComment: '',
+      actionComment: '',
+      processStatus: '',
+      customCommentDraft: '',
+
+      // Filter icon popover
+      filterMenu: { open: false, field: '', x: 0, y: 0 }
+    };
+  },
+
+  computed: {
+    filteredRequests() {
+      const rows = Array.isArray(this.flexRequests) ? this.flexRequests : [];
+      const f = this.filters;
+
+      const match = (val, filter) =>
+        !filter || String(val ?? '').toLowerCase().includes(String(filter).toLowerCase());
+
+      return rows.filter((r) => {
+        if (!r || typeof r !== 'object') return false;
+
+        const userName = `${r.USER_FNAME || ''} ${r.USER_LNAME || ''}`.trim();
+
+        return (
+          match(r.REQUESTID, f.REQUESTID) &&
+          match(r.FACILITYID, f.FACILITYID) &&
+          match(r.HOURSPERWEEK, f.HOURSPERWEEK) &&
+          match(r.AREA, f.AREA) &&
+          match(r.CLUSTER, f.CLUSTER) &&
+          match(r.MPOO, f.MPOO) &&
+          match(r.CRAFT, f.CRAFT) &&
+          match(r.LABOURDISTRIBUTIONCODE, f.LABOURDISTRIBUTIONCODE) &&
+          match(r.OPERATIONNUMBER, f.OPERATIONNUMBER) &&
+          match(r.JUSTIFICATION, f.JUSTIFICATION) &&
+          match(r.STARTDATE, f.STARTDATE) &&
+          match(r.ENDDATE, f.ENDDATE) &&
+          match(r.CREATEDBY, f.CREATEDBY) &&
+          match(userName, f.USER_NAME) &&
+          match(r.CREATEDON, f.CREATEDON) &&
+          (!f.STATUS || String(r.STATUS || '').toLowerCase() === f.STATUS.toLowerCase()) &&
+          match(r.COMMENT, f.COMMENT) &&
+          match(r.CHANGEDBY, f.CHANGEDBY) &&
+          match(r.CHANGEDDATE, f.CHANGEDDATE)
+        );
+      });
+    }
+  },
+
+  totalRows() {
+    return Array.isArray(this.filteredRequests) ? this.filteredRequests.length : 0;
+  },
+  totalPages() {
+    return Math.max(1, Math.ceil(this.totalRows / this.pageSize));
+  },
+  firstRowIndex() {
+    // 0-based start for slice
+    return (this.currentPage - 1) * this.pageSize;
+  },
+  lastRowIndex() {
+    // non-inclusive end for slice
+    return Math.min(this.firstRowIndex + this.pageSize, this.totalRows);
+  },
+  paginatedRequests() {
+    // The rows actually rendered in <tbody>
+    return this.filteredRequests.slice(this.firstRowIndex, this.lastRowIndex);
+  },
+
+
+  methods: {
+
+
+    async authenticate() {
+      try {
+        const res = await axios.get('/ref/api/v1/authenticate.cfc?method=getUserAuth');
+
+        if (res.data) {
+          const aceid = (res.data.aceid || '').toUpperCase();
+
+          // List of allowed admin ACE IDs
+          const allowedAdmins = ['DG4QJ0', 'TR28H0', 'BR5TBB', 'KWC2RJ']; // replace with real admin ACE IDs
+
+          if (!allowedAdmins.includes(aceid)) {
+            alert('You are not authorized to access this page.');
+            window.location.href = '/ref/toolbox/flex/dashboard.html'; // redirect to homepage or login page
+            return;
+          }
+
+          // If admin, continue
+          this.userDisplayHeader = `${res.data.first} ${res.data.last} (${aceid})`;
+          this.userAceid = aceid;
+
+          if (this.userAceid) await this.fetchFacilities(); // load facilities for admin
+        }
+      } catch (e) {
+        console.error('Auth error', e);
+        alert('Error during authentication. Access denied.');
+
+      }
+    },
+
+    async fetchFacilities() {
+      try {
+        const res = await axios.get(
+          `${this.serviceFolder}csaw/access.cfc?method=getMyFacilities&userid=${encodeURIComponent(this.userAceid)}`
+        );
+        this.facilities = Array.isArray(res.data) ? res.data : [];
+
+        // If server didn't provide officeName and there's only one facility, use it
+        if ((!this.officeName || !this.officeName.trim()) && this.facilities.length === 1) {
+          const f = this.facilities[0];
+          this.officeName = f.B_FIN_NAME || this.officeName;
+        }
+      } catch (e) {
+        console.error('fetchFacilities error', e);
+        this.facilities = [];
+      }
+    },
+
+    showToast(message = 'Saved.', type = 'success') {
+      const el = document.getElementById('ft-toast');
+      const txt = document.getElementById('ft-toast-text');
+      if (!el || !txt) return;
+
+      // set type class
+      el.classList.remove('toast-success', 'toast-error', 'toast-info');
+      el.classList.add(type === 'error' ? 'toast-error' : type === 'info' ? 'toast-info' : 'toast-success');
+
+      // set text + show
+      txt.textContent = message;
+      el.classList.add('show');
+
+      // auto-hide
+      clearTimeout(this.__toastTimer);
+      this.__toastTimer = setTimeout(() => { el.classList.remove('show'); }, 2600);
+    },
+
+    closeModalAndRefresh() {
+      this.closeModal();            // your existing method
+      this.fetchFlexRequests();     // refresh table
+      this.fetchDashboard();        // refresh chart/metrics (optional but nice)
+    },
+
+    // async fetchHeaderData() {
+    //   try {
+    //     const res = await axios.get(`${this.serviceFolder}admin.cfc?method=getHeaderData`);
+    //     if (res?.data) {
+    //       this.officeName = res.data.officeName || '';
+    //       this.fiscalYear = res.data.fiscalYear || '';
+    //       this.week       = res.data.week || '';
+    //     }
+    //   } catch (e) {
+    //     console.error('Header load error', e);
+    //   }
+    // },
+
+
+    setPage(n) {
+      const page = Number(n) || 1;
+      this.currentPage = Math.min(Math.max(1, page), this.totalPages);
+    },
+    nextPage() {
+      if (this.currentPage < this.totalPages) this.currentPage += 1;
+    },
+    prevPage() {
+      if (this.currentPage > 1) this.currentPage -= 1;
+    },
+    clampPage() {
+      // keep page in range whenever data/filter changes
+      if (this.currentPage > this.totalPages) this.currentPage = this.totalPages;
+      if (this.currentPage < 1) this.currentPage = 1;
+    },
+
+
+    async fetchHeaderData() {
+      try {
+        const res = await axios.get(`${this.serviceFolder}admin.cfc?method=getHeaderData`);
+        this.officeName = res.data.officeName || this.officeName || '';
+        this.fiscalYear = res.data.fiscalYear || '';
+        this.week = res.data.week || '';
+
+        // FINAL client fallback: if server returned blanks, compute here
+        if (!this.fiscalYear || !this.week) {
+          const x = this.computeClientFYWeek();
+          if (!this.fiscalYear) this.fiscalYear = x.fy;
+          if (!this.week) this.week = x.week;
+        }
+      } catch (e) {
+        console.error('Header load error', e);
+        // if server failed entirely, still compute something
+        const x = this.computeClientFYWeek();
+        if (!this.fiscalYear) this.fiscalYear = x.fy;
+        if (!this.week) this.week = x.week;
+      }
+    },
+
+    openBannerMenu(evt) {
+      const wrap = this.$refs.bannerWrap;
+      if (!wrap) return;
+      const b = evt.currentTarget.getBoundingClientRect();
+      const w = wrap.getBoundingClientRect();
+      // position inside banner (relative)
+      this.bannerMenu.x = (b.left - w.left);
+      this.bannerMenu.y = (b.bottom - w.top) + 6;
+      this.bannerMenu.open = true;
+      evt.stopPropagation();
+    },
+    gotoFacility(f) {
+      if (!f) return;
+      // Update banner display
+      this.officeName = f.B_FIN_NAME || this.officeName;
+      // Optionally filter table to that facility
+      if (this.filters && Object.prototype.hasOwnProperty.call(this.filters, 'FACILITYID')) {
+        this.filters.FACILITYID = String(f.B_FIN_NBR || '');
+      }
+      this.bannerMenu.open = false;
+    },
+    _onDocClickBanner(e) {
+      if (!this.bannerMenu.open) return;
+      const pop = this.$refs.bannerMenuRef;
+      if (pop && pop.contains(e.target)) return; // clicks inside keep open
+      // ignore clicks on the "View all" button itself
+      if (e.target && e.target.closest && e.target.closest('[title="View all facilities"]')) return;
+      this.bannerMenu.open = false;
+    },
+
+
+    computeClientFYWeek() {
+      const today = new Date();
+      const y = today.getFullYear();
+
+      // last day of September this year
+      const sept30 = new Date(y, 8, 30); // month is 0-based (8 = Sep)
+      const dow = sept30.getDay();       // 0=Sun..6=Sat
+      const backDays = (dow === 6 ? 0 : (dow + 1)); // convert to "days since Sat"
+      const lastSat = new Date(sept30); lastSat.setDate(sept30.getDate() - backDays);
+
+      let fyStart = lastSat;
+      if (today < lastSat) {
+        const prevSept30 = new Date(y - 1, 8, 30);
+        const prevDow = prevSept30.getDay();
+        const prevBack = (prevDow === 6 ? 0 : (prevDow + 1));
+        fyStart = new Date(prevSept30); fyStart.setDate(prevSept30.getDate() - prevBack);
+      }
+
+      // FY = year(fyStart) + 1
+      const fy = fyStart.getFullYear() + 1;
+
+      // normalize to date-only
+      const startUTC = Date.UTC(fyStart.getFullYear(), fyStart.getMonth(), fyStart.getDate());
+      const todayUTC = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
+      const days = Math.floor((todayUTC - startUTC) / (1000 * 60 * 60 * 24));
+      const week = 1 + Math.floor(days / 7);
+
+      return { fy, week };
+    },
+
+
+
+
+
+
+    async fetchDashboard() {
+      try {
+        const res = await axios.get(`${this.serviceFolder}admin.cfc?method=getDashboardData`);
+        if (res?.data) {
+          const d = res.data;
+          this.metrics = {
+            TOTAL: Number(d.TOTAL || d.total || 0),
+            PENDING: Number(d.PENDING || d.pending || 0),
+            APPROVED: Number(d.APPROVED || d.approved || 0),
+            MODIFICATION: Number(d.MODIFICATION || d.modified || 0),
+            DECLINED: Number(d.DECLINED || d.declined || 0)
+          };
+          this.renderChart();
+        }
+      } catch (e) {
+        console.error('Dashboard load error', e);
+      }
+    },
+
+    async fetchFlexRequests() {
+      try {
+        const res = await axios.get(`${this.serviceFolder}admin.cfc?method=getFlexRequests`);
+        const rows = Array.isArray(res.data) ? res.data : [];
+        this.flexRequests = rows.filter(r => r && typeof r === 'object');
+
+        // Status list for the menu
+        this.statusOptions = Array.from(
+          new Set(this.flexRequests.map(r => r.STATUS).filter(Boolean))
+        ).sort();
+      } catch (e) {
+        console.error('Error loading request', e);
+        this.flexRequests = [];
+        this.statusOptions = [];
+        this.clampPage();
+      }
+    },
+
+
+    onContainerScroll() { if (this.filterMenu.open) this.filterMenu.open = false; },
+    onWinResize() { if (this.filterMenu.open) this.filterMenu.open = false; },
+
+
+    // ---------- chart (includes Modify) ----------
+    renderChart() {
+      const el = document.getElementById('trendChart');
+      if (!el) return;
+      const ctx = el.getContext('2d');
+      if (this.statusChart) { this.statusChart.destroy(); this.statusChart = null; }
+
+      const { TOTAL, PENDING, APPROVED, MODIFICATION, DECLINED } = this.metrics;
+
+      this.statusChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: ['TOTAL', 'PENDING', 'APPROVED', 'MODIFY', 'DECLINED'],
+          datasets: [{
+            label: 'Number of Requests',
+            data: [TOTAL, PENDING, APPROVED, MODIFICATION, DECLINED],
+            backgroundColor: [
+              'rgba(54, 162, 235, 0.8)',
+              'rgba(255, 206, 86, 0.8)',
+              'rgba(75, 192, 192, 0.8)',
+              'rgba(153, 102, 255, 0.8)',
+              'rgba(255, 99, 132, 0.8)'
+            ],
+            borderColor: [
+              'rgba(54, 162, 235, 1)',
+              'rgba(255, 206, 86, 1)',
+              'rgba(75, 192, 192, 1)',
+              'rgba(153, 102, 255, 1)',
+              'rgba(255, 99, 132, 1)'
+            ],
+            borderWidth: 1,
+            borderRadius: 8,
+            barPercentage: 0.6,
+            categoryPercentage: 0.5
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            title: { display: true, text: 'Request Trend', font: { size: 18, weight: '500' } },
+            legend: { display: false }
+          },
+          scales: {
+            x: { grid: { display: false }, ticks: { font: { size: 13 } } },
+            y: {
+              beginAtZero: true,
+              grid: { color: 'rgba(0,0,0,0.05)', borderDash: [3, 3] },
+              ticks: { stepSize: 10, font: { size: 12 } }
+            }
+          }
+        }
+      });
+    },
+
+    // ---------- UI helpers ----------
+    statusClass(status) {
+      switch ((status || '').toString()) {
+        case 'Approved': return 'bg-green-100 text-green-800';
+        case 'Pending': return 'bg-blue-100 text-blue-800';
+        case 'Declined': return 'bg-red-100 text-red-800';
+        case 'Modify': return 'bg-yellow-100 text-yellow-800';
+        default: return 'bg-gray-100 text-gray-800';
+      }
+    },
+
+    // Modal & editing
+    selectRequest(req) {
+      if (!req) return;
+      this.selectedRequest = req;
+      this.actionComment = '';
+      this.processStatus = '';
+      this.isEditing = false;
+      this.showingModal = true;
+
+      this.editForm = {
+        requestID: req.REQUESTID,
+        facilityID: req.FACILITYID,
+        craft: req.CRAFT,
+        ldc: Number(req.LABOURDISTRIBUTIONCODE),
+        operationNumber: req.OPERATIONNUMBER,
+        hoursPerWeek: Number(req.HOURSPERWEEK),
+        justification: req.JUSTIFICATION,
+        startDate: req.STARTDATE,
+        endDate: req.ENDDATE,
+        status: req.STATUS
+      };
+    },
+
+    async saveFieldEdits() {
+      try {
+        const reqId = this.editForm.requestID;
+        if (!reqId) { this.processStatus = 'Missing RequestID.'; return; }
+
+        const toISO = (v) => v ? new Date(v).toISOString().slice(0, 10) : '';
+
+        const fd = new FormData();
+        fd.append('requestId', reqId);
+        if (this.editForm.facilityID) fd.append('facility', this.editForm.facilityID);
+        if (this.editForm.craft) fd.append('craft', this.editForm.craft);
+        if (this.editForm.ldc != null) fd.append('ldc', this.editForm.ldc);
+        if (this.editForm.operationNumber) fd.append('operationNumber', this.editForm.operationNumber);
+        if (this.editForm.hoursPerWeek != null) fd.append('hours', this.editForm.hoursPerWeek);
+        if (this.editForm.justification) fd.append('justification', this.editForm.justification);
+        if (this.editForm.startDate) fd.append('startDate', toISO(this.editForm.startDate));
+        if (this.editForm.endDate) fd.append('endDate', toISO(this.editForm.endDate));
+        if (this.editForm.status) fd.append('status', this.editForm.status);
+
+        const res = await axios.post(
+          `${this.serviceFolder}admin.cfc?method=updateRequestFields&returnformat=json`,
+          fd,
+          { validateStatus: () => true }
+        );
+
+        if (res.status === 200 && res.data && res.data.SUCCESS) {
+          const idx = this.flexRequests.findIndex(r => r.REQUESTID === reqId);
+          if (idx >= 0) {
+            this.flexRequests[idx] = {
+              ...this.flexRequests[idx],
+              FACILITYID: this.editForm.facilityID ?? this.flexRequests[idx].FACILITYID,
+              CRAFT: this.editForm.craft ?? this.flexRequests[idx].CRAFT,
+              LABOURDISTRIBUTIONCODE: this.editForm.ldc ?? this.flexRequests[idx].LABOURDISTRIBUTIONCODE,
+              OPERATIONNUMBER: this.editForm.operationNumber ?? this.flexRequests[idx].OPERATIONNUMBER,
+              HOURSPERWEEK: this.editForm.hoursPerWeek ?? this.flexRequests[idx].HOURSPERWEEK,
+              JUSTIFICATION: this.editForm.justification ?? this.flexRequests[idx].JUSTIFICATION,
+              STARTDATE: this.editForm.startDate || this.flexRequests[idx].STARTDATE,
+              ENDDATE: this.editForm.endDate || this.flexRequests[idx].ENDDATE,
+              STATUS: this.editForm.status || this.flexRequests[idx].STATUS
+            };
+          }
+          this.processStatus = 'Changes saved.';
+          this.isEditing = false;
+        } else {
+          console.error('Server error body:', res.data);
+          this.processStatus = (res.data && res.data.MESSAGE) ? res.data.MESSAGE : `Save failed (HTTP ${res.status})`;
+        }
+      } catch (err) {
+        console.error('saveFieldEdits error', err);
+        this.processStatus = 'Error saving changes';
+      }
+    },
+
+    async updateStatus(newStatus) {
+      if (!this.selectedRequest) return;
+
+      try {
+        const res = await axios.post(
+          `${this.serviceFolder}admin.cfc?method=updateRequest`,
+          {
+            requestID: this.selectedRequest.REQUESTID,
+            status: newStatus,
+            comment: this.actionComment
+          }
+        );
+
+        const ok = res && res.status === 200 &&
+          (res.data?.SUCCESS === true ||
+            String(res.data?.MESSAGE || '').toLowerCase().includes('status updated'));
+
+        if (ok) {
+          // Map toast message + style per status
+          let msg = 'Updated';
+          let type = 'success';
+          if (newStatus === 'Approved') {
+            msg = 'Request Approved';
+            type = 'success';
+          } else if (newStatus === 'Declined') {
+            msg = 'Request Declined';
+            type = 'error';     // red style
+          } else if (newStatus === 'Modify') {
+            msg = 'Modification Requested';
+            type = 'info';      // blue style
+          }
+
+          this.showToast(msg, type);
+
+          // Auto-close modal for ALL three actions, then refresh grid + metrics
+          this.closeModalAndRefresh();
+
+        } else {
+          console.error('Server response:', res?.data);
+          this.showToast('Update failed', 'error');
+          this.processStatus = 'Error updating request';
+        }
+      } catch (err) {
+        console.error(err);
+        this.showToast('Network error', 'error');
+        this.processStatus = 'Error updating request';
+      }
+    },
+
+    closeModal() {
+      this.showingModal = false;
+      this.selectedRequest = null;
+      this.processStatus = '';
+    },
+
+    onQuickCommentChange() {
+      if (this.selectedComment === 'OTHER') {
+        this.actionComment = this.customCommentDraft || '';
+        this.$nextTick(() => { this.$refs.otherCommentBox?.focus(); });
+      } else if (this.selectedComment) {
+        if (this.customCommentDraft !== this.actionComment && this.actionComment?.length) {
+          this.customCommentDraft = this.actionComment;
+        }
+        this.actionComment = this.selectedComment;
+      } else {
+        this.actionComment = '';
+      }
+    },
+
+
+
+    fmt(n) {
+      const v = Number(n || 0);
+      return new Intl.NumberFormat('en-US').format(v);
+    },
+
+    // ---------- Excel-style filter popover ----------
+
+    openFilterMenu(field, evt) {
+      const btn = evt.currentTarget;
+      const container = this.$refs.tblWrap;   // the .tbl-wrap div
+      if (!btn || !container) return;
+
+      const b = btn.getBoundingClientRect();
+      const c = container.getBoundingClientRect();
+
+      // If "Shrink to fit" applies transform: scale(), adjust coordinates.
+      const scaleX = (c.width / container.clientWidth) || 1;
+      const scaleY = (c.height / container.clientHeight) || 1;
+
+      // Coordinates inside the container’s own coordinate system
+      const leftInContainer = (b.left - c.left) / scaleX + container.scrollLeft;
+      const topInContainer = (b.bottom - c.top) / scaleY + container.scrollTop + 6;
+
+      // Clamp horizontally so 260px-wide menu stays visible in the container
+      const menuWidth = 260;
+      const maxX = container.scrollLeft + container.clientWidth - menuWidth - 8;
+      let x = leftInContainer;
+      if (x > maxX) x = Math.max(container.scrollLeft, maxX);
+
+      this.filterMenu.field = field;
+      this.filterMenu.x = x;
+      this.filterMenu.y = topInContainer;
+      this.filterMenu.open = true;
+
+      evt.stopPropagation(); // prevent immediate close by document click
+    },
+
+    onDocClick(e) {
+      const pop = this.$refs.filterMenuRef;
+      if (!pop) { this.filterMenu.open = false; return; }
+      if (!pop.contains(e.target)) { this.filterMenu.open = false; }
+    },
+
+    onStatusChange(e) {
+      const val = (e && e.target) ? e.target.value : '';
+      this.filters.STATUS = String(val || '');
+      this.filterMenu.open = false;
+    },
+
+    clearFilter(field) {
+      this.filters[field] = '';
+      this.filterMenu.open = false;
+    },
+
+    exportTableToCSV() {
+      const headers = [
+        'ID', 'Facility', 'FacilityName', 'Area', 'Cluster', 'Mpoo', 'Hours', 'Craft', 'LDC', 'Operation', 'Justification',
+        'Start', 'End', 'By', 'On', 'Status', 'Comment', 'ChangedBy', 'ChangedDate', 'UserFName', 'UserLName'
+      ];
+
+      const rows = (Array.isArray(this.filteredRequests) ? this.filteredRequests : []).map(req => [
+        req.REQUESTID,
+        req.FACILITYID,
+        req.FACILITYNAME,
+        req.AREA,
+        req.CLUSTER,
+        req.MPOO,
+        req.HOURSPERWEEK,
+        req.CRAFT,
+        req.LABOURDISTRIBUTIONCODE,
+        req.OPERATIONNUMBER,
+        req.JUSTIFICATION,
+        req.STARTDATE,
+        req.ENDDATE,
+        req.CREATEDBY,
+        req.CREATEDON,
+        req.STATUS,
+        req.COMMENT,
+        req.CHANGEDBY,
+        req.CHANGEDDATE,
+        req.USER_FNAME,
+        req.USER_LNAME
+      ]);
+
+      const csvContent = [
+        headers.join(','),
+        ...rows.map(row => row.map(cell => {
+          const text = String(cell ?? '').replace(/"/g, '""');
+          return `"${text}"`;
+        }).join(','))
+      ].join('\r\n');
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.setAttribute('download', 'flex-time-requests.csv');
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+  },
+
+  watch: {
+    actionComment(newVal) {
+      if (this.selectedComment === 'OTHER') {
+        this.customCommentDraft = newVal;
+      }
+    }
+  },
+
+  filteredRequests() {
+    this.currentPage = 1;
+    this.clampPage();
+
+  },
+
+
+  mounted() {
+    document.addEventListener('click', this.onDocClick);
+
+    // existing data loads:
+    this.authenticate();
+    this.fetchHeaderData();
+    this.fetchDashboard();
+    this.fetchFlexRequests();
+
+    // NEW: keep popover sane on scroll/resize
+    const cont = this.$refs.tblWrap;
+    if (cont) cont.addEventListener('scroll', this.onContainerScroll, { passive: true });
+    window.addEventListener('resize', this.onWinResize, { passive: true });
+  },
+
+  beforeUnmount() {
+    document.removeEventListener('click', this.onDocClick);
+    const cont = this.$refs.tblWrap;
+    if (cont) cont.removeEventListener('scroll', this.onContainerScroll);
+    window.removeEventListener('resize', this.onWinResize);
+  },
+}).mount('#dashboardApp');
+
+
+
+
+
+
+
+
+
+        admin.cfc
+
+
+
+
+
+
+        component {
+
+  // --- server-side admin check (keep in sync with your front-end list) ---
+  private boolean function isAdminUser() output="false" {
+    var ace = structKeyExists(session, "userACE") ? uCase(session.userACE) : "";
+    // TODO: move to DB later; for now keep it hard-coded
+    var ADMIN_WHITELIST = "DG4QJ0,TR28H0,BR5TBB,KWC2RJ";
+    return len(ace) AND listFindNoCase(ADMIN_WHITELIST, ace) GT 0;
+  }
+
+
+  /**
+   * Summary metrics used by the cards and chart.
+   */
+  remote any function getDashboardData()
+    returnFormat="JSON" produces="application/json" output="false" {
+
+    cfheader(name="Content-Type", value="application/json;charset=UTF-8");
+
+    var q = queryExecute(
+      "
+      SELECT
+        COUNT(*) AS total,
+        SUM(CASE WHEN Status='Pending'  THEN 1 ELSE 0 END) AS pending,
+        SUM(CASE WHEN Status='Approved' THEN 1 ELSE 0 END) AS approved,
+        SUM(CASE WHEN Status='Modify'   THEN 1 ELSE 0 END) AS modified,
+        SUM(CASE WHEN Status='Declined' THEN 1 ELSE 0 END) AS declined
+      FROM PCSV_dw.dbo.FlexTimeRequests
+      ",
+      {},
+      { datasource = "pcsv_dw" }
+    );
+
+    if ( !q.recordCount ) {
+      return { TOTAL:0, PENDING:0, APPROVED:0, MODIFICATION:0, DECLINED:0 };
+    }
+
+    return {
+      TOTAL        : val(q.total[1]),
+      PENDING      : val(q.pending[1]),
+      APPROVED     : val(q.approved[1]),
+      MODIFICATION : val(q.modified[1]),
+      DECLINED     : val(q.declined[1])
+    };
+  }
+
+
+  /**
+   * Returns the rows for the table.
+   * NOTE: If you want admins to see ALL requests, remove the WHERE CreatedBy = :currentUserAce.
+   */
+  remote any function getFlexRequests()
+    returnFormat="JSON" produces="application/json" output="false" {
+
+    cfheader(name="Content-Type", value="application/json;charset=UTF-8");
+
+    // show only rows from Jan 1, 2025 onward
+    var startFrom = createDate(2025, 1, 1);
+
+    var params  = { startFrom: { value:startFrom, cfsqltype:"cf_sql_date" } };
+    var isAdmin = isAdminUser();
+
+    var sql = "
+      WITH LatestAudit AS (
+        SELECT
+          a.RequestID,
+          a.Comment,
+          a.ChangedBy,
+          a.ChangedDate,
+          a.OldStatus,
+          a.NewStatus,
+          ROW_NUMBER() OVER (PARTITION BY a.RequestID ORDER BY a.ChangedDate DESC, a.AuditID DESC) AS rn
+        FROM PCSV_dw.dbo.FlexTimeAudit a
+      ),
+      LatestFile AS (
+        SELECT z.RequestID, z.FileId, z.FileName
+        FROM (
+          SELECT
+            f.RequestID, f.FileId, f.FileName, f.UploadedAt,
+            ROW_NUMBER() OVER (PARTITION BY f.RequestID ORDER BY f.UploadedAt DESC, f.FileId DESC) AS rn
+          FROM PCSV_dw.dbo.FlexTimeFileStorage f
+        ) z WHERE z.rn = 1
+      )
+      SELECT
+        ftr.RequestID,
+        ftr.FacilityID,
+        vb.B_FIN_NAME               AS FacilityName,
+        ftr.Craft,
+        ftr.LabourDistributionCode,
+        ftr.OperationNumber,
+        ftr.HoursPerWeek,
+        ftr.Justification,
+        ftr.Status,
+        CONVERT(VARCHAR(10), ftr.StartDate, 23) AS StartDate,
+        CONVERT(VARCHAR(10), ftr.EndDate,   23) AS EndDate,
+        ftr.CreatedBy,
+        cp.user_fname,
+        cp.user_lname,
+        CONVERT(VARCHAR(19), ftr.CreatedDate, 120) AS CreatedOn,
+        la.Comment,
+        la.ChangedBy,
+        CONVERT(VARCHAR(19), la.ChangedDate, 120)  AS ChangedDate,
+        lf.FileId,
+        lf.FileName
+      FROM pcsv_dw.dbo.FlexTimeRequests AS ftr
+      INNER JOIN PCSV_csaw.dbo.csaw_pw AS cp 
+        ON ftr.CreatedBy = cp.user_id
+      LEFT JOIN PCSV_dw.dbo.var_base vb
+        ON vb.B_FIN_NBR = ftr.FacilityID
+      LEFT JOIN LatestAudit la
+        ON la.RequestID = ftr.RequestID AND la.rn = 1
+      LEFT JOIN LatestFile lf
+        ON lf.RequestID = ftr.RequestID
+      WHERE ftr.CreatedDate >= :startFrom
+    ";
+
+    // Only non-admins are restricted to their own rows
+    if ( NOT isAdmin ) {
+      sql &= " AND ftr.CreatedBy = :currentUserAce ";
+      params.currentUserAce = { value:session.userACE, cfsqltype:"cf_sql_varchar" };
+    }
+
+    sql &= " ORDER BY ftr.CreatedDate DESC ";
+
+    var raw = queryExecute(sql, params, { datasource:"pcsv_dw" });
+
+    var cleaned = [];
+    for ( var i = 1; i <= raw.recordCount; i++ ) {
+      var id     = raw["RequestID"][i];
+      var fileId = raw["FileId"][i];
+      var fname  = raw["FileName"][i];
+
+      var hasFile        = isNumeric(fileId) AND val(fileId) GT 0;
+      var attachmentUrl  = "";
+      var attachmentName = "";
+
+      if ( hasFile ) {
+        attachmentUrl  = "/ref/api/v1/toolbox.flex/flex.cfc?method=downloadAttachment&requestID=" & id;
+        if ( isSimpleValue(fname) AND len(trim(toString(fname))) ) {
+          attachmentName = fname;
+        }
+      }
+
+      arrayAppend(cleaned, {
+        REQUESTID              : id,
+        FACILITYID             : raw["FacilityID"][i],
+        FACILITYNAME           : raw["FacilityName"][i],
+        CRAFT                  : raw["Craft"][i],
+        LABOURDISTRIBUTIONCODE : raw["LabourDistributionCode"][i],
+        OPERATIONNUMBER        : raw["OperationNumber"][i],
+        HOURSPERWEEK           : raw["HoursPerWeek"][i],
+        JUSTIFICATION          : raw["Justification"][i],
+        STATUS                 : raw["Status"][i],
+        STARTDATE              : raw["StartDate"][i],
+        ENDDATE                : raw["EndDate"][i],
+        CREATEDBY              : raw["CreatedBy"][i],
+        USER_FNAME             : raw["user_fname"][i],
+        USER_LNAME             : raw["user_lname"][i],
+        CREATEDON              : raw["CreatedOn"][i],
+        COMMENT                : raw["Comment"][i],
+        CHANGEDBY              : raw["ChangedBy"][i],
+        CHANGEDDATE            : raw["ChangedDate"][i],
+        ATTACHMENTURL          : attachmentUrl,
+        ATTACHMENTNAME         : attachmentName
+      });
+    }
+
+    return cleaned;
+  }
+
+
+  /**
+   * Header values for banner: facility name, current FY and week.
+   * Keeps Master_Calendar as source of truth; if it returns nothing,
+   * fallback computes FY start as the last Saturday in September.
+   */
+  remote any function getHeaderData()
+    returnFormat="JSON" produces="application/json" output="false" {
+
+    cfheader(name="Content-Type", value="application/json;charset=UTF-8");
+
+    var hdr = {};
+
+    // ---------- Office/Facility name ----------
+    var qFac = queryExecute(
+      "
+      SELECT TOP 1 vb.B_FIN_NAME AS officeName
+      FROM PCSV_csaw.dbo.csaw_pw cp
+      JOIN PCSV_dw.dbo.FlexTimeRequests ftr ON cp.user_id = ftr.CreatedBy
+      JOIN PCSV_dw.dbo.var_base vb          ON ftr.FacilityID = vb.B_FIN_NBR
+      WHERE cp.user_id = :uid
+      ORDER BY ftr.CreatedDate DESC
+      ",
+      { uid: { value:session.userACE, cfsqltype:"cf_sql_varchar" } },
+      { datasource:"pcsv_dw" }
+    );
+
+    hdr.officeName = qFac.recordCount ? qFac.officeName[1] : "";
+
+    if ( !len(hdr.officeName) ) {
+      var qLast = queryExecute(
+        "
+        SELECT TOP 1 vb.B_FIN_NAME AS officeName
+        FROM PCSV_dw.dbo.FlexTimeRequests f
+        LEFT JOIN PCSV_dw.dbo.var_base vb ON vb.B_FIN_NBR = f.FacilityID
+        ORDER BY f.CreatedDate DESC
+        ",
+        {},
+        { datasource:"pcsv_dw" }
+      );
+      if ( qLast.recordCount ) hdr.officeName = qLast.officeName[1];
+    }
+    if ( !len(hdr.officeName) ) hdr.officeName = "Multiple Facilities";
+
+    // ---------- Fiscal Year & Week (today) ----------
+    // 1) Primary: strict "between" match using DATE param
+    var qWeek = queryExecute(
+      "
+      SELECT TOP 1 cal_fy_long AS fiscalYear, cal_fy_wk AS week
+      FROM PCSV_dw.dbo.Master_Calendar
+      WHERE :todayDate BETWEEN cal_date_beg_wk AND cal_date_end_wk
+      ORDER BY cal_id DESC
+      ",
+      { todayDate: { value:now(), cfsqltype:"cf_sql_date" } },
+      { datasource:"pcsv_dw" }
+    );
+
+    if ( qWeek.recordCount ) {
+      hdr.fiscalYear = qWeek.fiscalYear[1];
+      hdr.week       = qWeek.week[1];
+      return hdr;
+    }
+
+    // 2) Fallback from table: pick the latest week whose begin <= today
+    var qWeek2 = queryExecute(
+      "
+      SELECT TOP 1 cal_fy_long AS fiscalYear, cal_fy_wk AS week
+      FROM PCSV_dw.dbo.Master_Calendar
+      WHERE cal_date_beg_wk <= :todayDate
+      ORDER BY cal_date_beg_wk DESC, cal_id DESC
+      ",
+      { todayDate: { value:now(), cfsqltype:"cf_sql_date" } },
+      { datasource:"pcsv_dw" }
+    );
+
+    if ( qWeek2.recordCount ) {
+      hdr.fiscalYear = qWeek2.fiscalYear[1];
+      hdr.week       = qWeek2.week[1];
+      return hdr;
+    }
+
+    // 3) Last resort: compute USPS FY/Week (last Saturday of September)
+    var today    = now();
+    var thisYear = year(today);
+
+    var septLast = createDate(thisYear, 9, 30);
+    var backDays = ( dayOfWeek(septLast) mod 7 ); // Sat -> 0
+    var lastSat  = dateAdd("d", -backDays, septLast);
+
+    var fyStart = (
+      today < lastSat
+        ? dateAdd("d", -(dayOfWeek(createDate(thisYear-1, 9, 30)) mod 7), createDate(thisYear-1, 9, 30))
+        : lastSat
+    );
+
+    hdr.fiscalYear = year(fyStart) + 1;
+
+    var todayDateOnly   = parseDateTime( dateFormat(today,   "yyyy-mm-dd") );
+    var fyStartDateOnly = parseDateTime( dateFormat(fyStart, "yyyy-mm-dd") );
+    var daysIn          = dateDiff("d", fyStartDateOnly, todayDateOnly);
+    var weekNum         = 1 + int( daysIn / 7 );
+
+    hdr.week = weekNum;
+
+    return hdr;
+  }
+
+
+  /**
+   * Update request status and insert audit row, then email the requester.
+   * Returns {SUCCESS, MESSAGE}.
+   */
+  remote any function updateRequest()
+    returnFormat="JSON" produces="application/json" output="false" {
+
+    // ---- read payload safely ----
+    var payload = {};
+    try {
+      var http = getHTTPRequestData();
+      if ( structKeyExists(http, "content") AND len(trim(http.content)) ) {
+        payload = deserializeJSON(http.content);
+      }
+    } catch ( any __p ) {
+      payload = {};
+    }
+
+    var reqID   = ( structKeyExists(payload, "requestID") ? val(payload.requestID)   : 0  );
+    var newStat = ( structKeyExists(payload, "status")    ? toString(payload.status) : "" );
+    var comment = ( structKeyExists(payload, "comment")   ? toString(payload.comment): "" );
+
+    var result = { SUCCESS:false, MESSAGE:"" };
+
+    try {
+      transaction {
+        // ---- 0) Read current (OLD) status FIRST ----
+        var qCur = queryExecute(
+          "SELECT TOP 1 Status FROM PCSV_dw.dbo.FlexTimeRequests WHERE RequestID = :rid",
+          { rid: { value:reqID, cfsqltype:"cf_sql_integer" } },
+          { datasource:"pcsv_dw" }
+        );
+        if ( !qCur.recordCount ) {
+          result.SUCCESS = false;
+          result.MESSAGE = "Request not found.";
+          return result;
+        }
+        var oldStat = qCur.Status[1];
+
+        // Idempotent: no change → skip update/audit
+        if ( compareNoCase(oldStat, newStat) EQ 0 ) {
+          result.SUCCESS = true;
+          result.MESSAGE = "No status change.";
+          return result;
+        }
+
+        // ---- 1) Update status on the canonical row ----
+        queryExecute(
+          "
+          UPDATE PCSV_dw.dbo.FlexTimeRequests
+             SET Status       = :newStatus,
+                 ModifiedBy   = :user,
+                 ModifiedDate = GETDATE()
+           WHERE RequestID    = :reqID
+          ",
+          {
+            newStatus : { value:newStat,         cfsqltype:"cf_sql_varchar" },
+            user      : { value:session.userACE, cfsqltype:"cf_sql_varchar" },
+            reqID     : { value:reqID,           cfsqltype:"cf_sql_integer" }
+          },
+          { datasource:"pcsv_dw" }
+        );
+
+        // ---- 2) Insert ONE audit row using the captured old/new ----
+        queryExecute(
+          "
+          INSERT INTO PCSV_dw.dbo.FlexTimeAudit
+            (RequestID, Comment, ChangedBy, ChangedDate, OldStatus, NewStatus)
+          VALUES
+            (:reqID, :cmnt, :user, GETDATE(), :oldStatus, :newStatus)
+          ",
+          {
+            reqID     : { value:reqID,           cfsqltype:"cf_sql_integer" },
+            cmnt      : { value:comment,         cfsqltype:"cf_sql_varchar" },
+            user      : { value:session.userACE, cfsqltype:"cf_sql_varchar" },
+            oldStatus : { value:oldStat,         cfsqltype:"cf_sql_varchar" },
+            newStatus : { value:newStat,         cfsqltype:"cf_sql_varchar" }
+          },
+          { datasource:"pcsv_dw" }
+        );
+      } // transaction
+
+      // ---- 3) Email requester (unchanged) ----
+      try {
+        var r = queryExecute(
+          "
+          SELECT TOP 1
+            f.RequestID, f.FacilityID, f.Craft, f.LabourDistributionCode, f.OperationNumber,
+            f.HoursPerWeek, f.Justification,
+            CONVERT(VARCHAR(10), f.StartDate, 23) AS StartDate,
+            CONVERT(VARCHAR(10), f.EndDate,   23) AS EndDate,
+            f.CreatedBy,
+            vb.B_FIN_NAME AS FacilityName,
+            LTRIM(RTRIM(COALESCE(pw.user_fname,'') + ' ' + COALESCE(pw.user_lname,''))) AS UserName,
+            NULLIF(LTRIM(RTRIM(pw.user_email)), '') AS UserEmail
+          FROM PCSV_dw.dbo.FlexTimeRequests f
+          LEFT JOIN PCSV_dw.dbo.var_base vb ON vb.B_FIN_NBR = f.FacilityID
+          LEFT JOIN PCSV_csaw.dbo.csaw_pw pw ON pw.user_id   = f.CreatedBy
+          WHERE f.RequestID = :rid
+          ",
+          { rid: { value:reqID, cfsqltype:"cf_sql_integer" } },
+          { datasource:"pcsv_dw" }
+        );
+
+        if ( r.recordCount ) {
+          var toEmail = "";
+          if ( structKeyExists(r, "UserEmail") AND len( trim( r.UserEmail[1] ) ) ) {
+            toEmail = trim( r.UserEmail[1] );
+          }
+
+          if ( len(toEmail) ) {
+            var subj = "Flex Time " & newStat & " (ID " & reqID & ")";
+
+            var uname = r.UserName[1]       ?: "";
+            var facId = r.FacilityID[1]     ?: "";
+            var facNm = r.FacilityName[1]   ?: "";
+            var craft = r.Craft[1]          ?: "";
+            var ldc   = r.LabourDistributionCode[1] ?: "";
+            var op    = r.OperationNumber[1] ?: "";
+            var hrs   = r.HoursPerWeek[1]   ?: "";
+            var sd    = r.StartDate[1]      ?: "";
+            var ed    = r.EndDate[1]        ?: "";
+
+            var parts = [];
+            arrayAppend(parts, "<p>Hello" & ( len(uname) ? " " & htmlEditFormat(uname) : "" ) & ",</p>");
+            arrayAppend(parts, "<p>Your Flex Time request was <b>" & htmlEditFormat(newStat) & "</b></p>");
+
+            if ( len(trim(comment)) ) {
+              arrayAppend(parts, "<p><b>Comment</b><br>" & htmlEditFormat(comment) & "</p>");
+            }
+
+            var details = "<p>";
+            details &= "<b>Facility</b> " & htmlEditFormat(facId);
+            if ( len(facNm) ) details &= " - " & htmlEditFormat(facNm);
+            if ( len(craft) ) details &= "<br><b>Craft</b> " & htmlEditFormat(craft);
+            if ( len(ldc) )   details &= "<br><b>LDC</b> "   & htmlEditFormat(ldc);
+            if ( len(op) )    details &= "<br><b>Operation</b> " & htmlEditFormat(op);
+            if ( len( hrs & "" ) ) details &= "<br><b>Hours Per Week</b> " & htmlEditFormat( hrs & "" );
+            details &= "<br><b>Dates</b> " & htmlEditFormat(sd) & " to " & htmlEditFormat(ed) & "</p>";
+
+            arrayAppend(parts, details);
+            arrayAppend(parts, "<p><a href=""https://eagnmnwb161f.usps.gov/ref/toolbox/flex/dashboard.html"">Open dashboard</a></p>");
+
+            var html = arrayToList(parts, "");
+
+            mail(
+              to      = toEmail,
+              from    = "Workhour Efficiency <workhourefficiencysupport@usps.gov>",
+              subject = subj,
+              type    = "html"
+            ) {
+              writeOutput(html);
+            }
+          }
+        }
+      } catch ( any __mailErr ) {
+        writeLog(file="application", text="admindashboardservice.updateRequest email error: " & __mailErr.message & " :: " & __mailErr.detail);
+      }
+
+      result.SUCCESS = true;
+      result.MESSAGE = "Status updated to " & newStat;
+
+    } catch ( any e ) {
+      writeLog(file="application", text="admin updateRequest error: " & e.message & " :: " & e.detail);
+      result.SUCCESS = false;
+      result.MESSAGE = "Error: " & e.message;
+    }
+
+    return result;
+  }
+
+
+  /**
+   * Update fields for a request (existing behavior preserved).
+   */
+  remote any function updateRequestFields(
+    numeric requestId       = 0,
+    string  facility        = "",
+    string  craft           = "",
+    numeric ldc             = 0,
+    string  operationNumber = "",
+    string  hours           = "",
+    string  justification   = "",
+    string  startDate       = "",
+    string  endDate         = "",
+    string  status          = ""
+  ) returnFormat="JSON" produces="application/json" output="false" {
+
+    cfheader(name="Content-Type", value="application/json;charset=UTF-8");
+
+    var result = { SUCCESS:false, MESSAGE:"", REQUESTID:0, DATA:{} };
+
+    try {
+      var http = getHTTPRequestData();
+      var ct   = lcase( toString( http.headers["Content-Type"] ?: http.headers["content-type"] ?: "" ) );
+
+      if ( findNoCase("application/json", ct) AND len(trim(http.content)) ) {
+        var body = deserializeJSON(http.content);
+
+        if ( structKeyExists(body, "requestID") AND NOT structKeyExists(body, "requestId") ) {
+          body.requestId = body.requestID;
+        }
+
+        if ( structKeyExists(body, "requestId") )       requestId       = val(body.requestId);
+        if ( structKeyExists(body, "facility") )        facility        = toString(body.facility);
+        if ( structKeyExists(body, "craft") )           craft           = toString(body.craft);
+        if ( structKeyExists(body, "ldc") )             ldc             = val(body.ldc);
+        if ( structKeyExists(body, "operationNumber") ) operationNumber = toString(body.operationNumber);
+        if ( structKeyExists(body, "hours") )           hours           = toString(body.hours);
+        if ( structKeyExists(body, "justification") )   justification   = toString(body.justification);
+        if ( structKeyExists(body, "startDate") )       startDate       = toString(body.startDate);
+        if ( structKeyExists(body, "endDate") )         endDate         = toString(body.endDate);
+        if ( structKeyExists(body, "status") )          status          = toString(body.status);
+      }
+
+      if ( NOT val(requestId) ) {
+        result.MESSAGE = "requestId is required.";
+        return result;
+      }
+
+      var startDateVal = javacast("null", "");
+      var endDateVal   = javacast("null", "");
+
+      if ( len(startDate) ) {
+        try { startDateVal = parseDateTime(startDate); } catch ( any e ) {}
+        if ( NOT isDate(startDateVal) ) startDateVal = lsParseDateTime(startDate);
+      }
+
+      if ( len(endDate) ) {
+        try { endDateVal = parseDateTime(endDate); } catch ( any e ) {}
+        if ( NOT isDate(endDateVal) ) endDateVal = lsParseDateTime(endDate);
+      }
+
+      if ( isDate(startDateVal) AND isDate(endDateVal) AND endDateVal < startDateVal ) {
+        result.MESSAGE = "End date can’t be before start date.";
+        return result;
+      }
+
+      if ( len(trim(status)) ) {
+        var okStatuses = "Pending,Approved,Declined,Modify";
+        if ( listFindNoCase(okStatuses, status) EQ 0 ) {
+          result.MESSAGE = "Invalid status. Allowed: #okStatuses#.";
+          return result;
+        }
+      }
+
+      var sets   = [];
+      var params = { rid: { value:val(requestId), cfsqltype:"cf_sql_integer" } };
+
+      if ( len(trim(facility)) )        { arrayAppend(sets, "FacilityID = :facility");            params.facility      = { value:facility,        cfsqltype:"cf_sql_varchar" }; }
+      if ( len(trim(craft)) )           { arrayAppend(sets, "Craft = :craft");                    params.craft         = { value:craft,           cfsqltype:"cf_sql_varchar" }; }
+      if ( val(ldc) GT 0 )              { arrayAppend(sets, "LabourDistributionCode = :ldc");     params.ldc           = { value:val(ldc),        cfsqltype:"cf_sql_integer" }; }
+      if ( len(trim(operationNumber)) ) { arrayAppend(sets, "OperationNumber = :opnum");          params.opnum         = { value:operationNumber, cfsqltype:"cf_sql_varchar" }; }
+      if ( len(trim(hours)) AND isNumeric(hours) ) {
+        arrayAppend(sets, "HoursPerWeek = :hours");
+        params.hours = { value:val(hours), cfsqltype:"cf_sql_numeric" };
+      }
+      if ( len(trim(justification)) )   { arrayAppend(sets, "Justification = :justification");    params.justification = { value:justification,   cfsqltype:"cf_sql_varchar" }; }
+      if ( isDate(startDateVal) )       { arrayAppend(sets, "StartDate = :startDate");            params.startDate     = { value:startDateVal,    cfsqltype:"cf_sql_date"    }; }
+      if ( isDate(endDateVal) )         { arrayAppend(sets, "EndDate = :endDate");                params.endDate       = { value:endDateVal,      cfsqltype:"cf_sql_date"    }; }
+      if ( len(trim(status)) )          { arrayAppend(sets, "Status = :status");                  params.status        = { value:status,          cfsqltype:"cf_sql_varchar" }; }
+
+      if ( arrayLen(sets) EQ 0 ) {
+        result.SUCCESS   = true;
+        result.MESSAGE   = "No changes detected.";
+        result.REQUESTID = val(requestId);
+        return result;
+      }
+
+      transaction {
+        arrayAppend(sets, "ModifiedBy = :modBy");
+        arrayAppend(sets, "ModifiedDate = GETDATE()");
+        params.modBy = {
+          value    : ( structKeyExists(session, "userACE") ? session.userACE : "system" ),
+          cfsqltype: "cf_sql_varchar"
+        };
+
+        queryExecute(
+          "UPDATE PCSV_dw.dbo.FlexTimeRequests SET #arrayToList(sets, ', ')# WHERE RequestID = :rid",
+          params,
+          { datasource:"pcsv_dw" }
+        );
+
+        var q = queryExecute(
+          "
+          SELECT TOP 1
+            RequestID, FacilityID, Craft, LabourDistributionCode, OperationNumber,
+            HoursPerWeek, Justification, Status,
+            CONVERT(VARCHAR(10), StartDate, 23) AS StartDate,
+            CONVERT(VARCHAR(10), EndDate,   23) AS EndDate,
+            CONVERT(VARCHAR(19), CreatedDate, 120) AS CreatedOn
+          FROM PCSV_dw.dbo.FlexTimeRequests
+          WHERE RequestID = :rid
+          ",
+          { rid: { value:val(requestId), cfsqltype:"cf_sql_integer" } },
+          { datasource:"pcsv_dw" }
+        );
+      }
+
+      if ( NOT q.recordCount ) {
+        result.SUCCESS = false;
+        result.MESSAGE = "Request not found.";
+        return result;
+      }
+
+      var row = {
+        REQUESTID             : q.RequestID[1],
+        FACILITYID            : q.FacilityID[1],
+        CRAFT                 : q.Craft[1],
+        LABOURDISTRIBUTIONCODE: q.LabourDistributionCode[1],
+        OPERATIONNUMBER       : q.OperationNumber[1],
+        HOURSPERWEEK          : q.HoursPerWeek[1],
+        JUSTIFICATION         : q.Justification[1],
+        STATUS                : q.Status[1],
+        STARTDATE             : q.StartDate[1],
+        ENDDATE               : q.EndDate[1],
+        CREATEDON             : q.CreatedOn[1]
+      };
+
+      result.SUCCESS   = true;
+      result.MESSAGE   = "Updated.";
+      result.REQUESTID = val(requestId);
+      result.DATA      = row;
+
+    } catch ( any e ) {
+      writeLog(file="application", text="Admin.updateRequestFields ERROR: " & e.message & " :: " & e.detail);
+      result.SUCCESS = false;
+      result.MESSAGE = "Server error: " & e.message;
+      result.DETAILS = e.detail;
+    }
+
+    return result;
+  }
+
+}
+
+
+
+
+
+        
+
+
