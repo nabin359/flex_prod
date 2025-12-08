@@ -1,0 +1,1424 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Flex Time Request</title>
+
+  <!-- Tailwind JIT -->
+  <script src="/ref/packages/tailwindcss.browser.4.min.js"></script>
+
+
+ <!-- Tailwind (internal with CDN fallback) -->
+<script>
+(function () {
+  var s = document.createElement('script');
+  s.src = '/ref/packages/tailwindcss.browser.4.min.js';
+  s.onerror = function () {
+    var cdn = document.createElement('script');
+    cdn.src = 'https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4';
+    document.head.appendChild(cdn);
+  };
+  document.head.appendChild(s);
+})();
+</script>
+
+
+  <!-- Flowbite -->
+  <link href="/ref/styles/flowbite.min.css" rel="stylesheet" />
+  <script src="/ref/packages/flowbite.min.js"></script>
+
+  <!-- Axios, Moment, Numeral -->
+  <script src="/ref/packages/axios.min.js"></script>
+  <script src="/ref/packages/moment.min.js" crossorigin="anonymous"></script>
+  <script src="/ref/packages/numeral.min.js" crossorigin="anonymous"></script>
+  <!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.30.1/moment.min.js" crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/numeral.js/2.0.6/numeral.min.js" crossorigin="anonymous"></script> -->
+
+  <!-- Global CSS -->
+  <link rel="stylesheet" href="/ref/styles/global.css" />
+
+  <!-- Vue & App JS -->
+  <script type="module" src="/ref/toolbox/flex/index.js"></script>
+
+  <style>
+    .usps-blue {
+      background-color: #004B87;
+    }
+
+    .btn-muted {
+      background-color: #3B6E8F;
+    }
+
+    .btn-muted:hover {
+      background-color: #345e78;
+      /* slightly darker for hover */
+    }
+  </style>
+
+
+</head>
+
+
+<body class="bg-gray-50 text-gray-800">
+  <div id="app" class="max-w-xl mx-auto my-8 p-6 bg-white rounded-2xl shadow-lg">
+    <div class="bg-[#3B6E8F] text-white rounded-md shadow-md p-6 mb-6">
+      <h1 class="text-3xl font-semibold">📮 Flex Time Request</h1>
+    </div>
+    <form @submit.prevent="submitRequest" novalidate class="space-y-6">
+
+      <!-- Facility -->
+      <div>
+        <label for="facility" class="block text-sm font-semibold">Facility</label>
+        <select id="facility" v-model="form.facility" required
+          class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+          <option disabled value=""> Select your facility </option>
+          <option v-for="row in user.function4_access" :value="row.B_FIN_NBR">{{ row.B_FIN_NAME }} ({{ row.B_FIN_NBR }})
+          </option>
+        </select>
+        <p v-if="errors.facility" class="text-red-600 text-sm mt-1">{{ errors.facility }}</p>
+      </div>
+
+
+      <!-- Craft & LDC together in one 2-column grid -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <!-- Craft -->
+        <div>
+          <label for="craft" class="block text-sm font-semibold">Craft</label>
+          <select id="craft" v-model="form.craft" required
+            class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+            <option disabled value="">Craft</option>
+            <option value="clerk">Clerk</option>
+            <option value="mailhandler">Mailhandler</option>
+          </select>
+          <p v-if="errors.craft" class="text-red-600 text-sm mt-1">{{ errors.craft }}</p>
+        </div>
+
+        <!-- LDC -->
+        <div>
+          <label for="operation" class="block text-sm font-semibold">Labor Distribution Code (LDC)</label>
+          <select id="operation" v-model="form.operation" required
+            class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+            <option disabled value="">— Select LDC —</option>
+            <option v-for="l in filteredLDCs" :key="l.ldc" :value="l.ldc">
+              LDC {{ l.ldc }} — {{ l.name }}
+            </option>
+          </select>
+          <p v-if="errors.operation" class="text-red-600 text-sm mt-1">{{ errors.operation }}</p>
+        </div>
+      </div><!-- ←––– close the 2-column grid here –––→ -->
+
+      <!-- Operation Number (full width) -->
+      <div class="mt-6">
+        <label for="operationCode" class="block text-sm font-semibold">Operation Number</label>
+        <select id="operationCode" v-model="form.operationCode" required
+          class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+          <option disabled value="">— Select operation code —</option>
+          
+          
+          <!-- <option v-for="code in filteredOperationCodes" :key="code" :value="code">
+            {{ code }} — {{ operationsList.find(o=>o.code===code).name }}
+          </option> -->
+
+            <option
+        v-for="opt in filteredOperationOptions"
+        :key="opt.code + '|' + opt.name"
+        :value="opt.code"
+      >
+        {{ opt.code }} — {{ opt.name }}
+      </option>
+          
+        </select>
+
+        
+        <p v-if="errors.operationCode" class="text-red-600 text-sm mt-1">{{ errors.operationCode }}</p>
+      </div>
+
+      <!-- Time requested (full width) -->
+      <div class="mt-6">
+        <label for="hours" class="block text-sm font-semibold">Daily Time requested (hrs.hundredths)</label>
+        <input id="hours" type="number" step="0.01" min="0.01" max="100" v-model.number="form.hours" required
+          class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" />
+        <p v-if="errors.hours" class="text-red-600 text-sm mt-1">{{ errors.hours }}</p>
+      </div>
+
+       <!-- Justification + tooltip -->
+<div class="mt-6 relative">
+  <label for="justification" class="block text-sm font-semibold inline-flex items-center gap-2">
+    Justification
+    <span
+      class="inline-flex items-center justify-center w-4 h-4 text-xs font-bold rounded-full bg-gray-200 text-gray-700 cursor-help"
+      data-tooltip-target="justif_tip" data-tooltip-placement="right">i</span>
+  </label>
+  <div
+    id="justif_tip"
+    role="tooltip"
+    class="absolute z-10 invisible inline-block px-3 py-2 text-sm font-medium text-white bg-gray-900 rounded-lg shadow-sm opacity-0 tooltip"
+  >
+    Provide a detailed explanation supporting the requested time value. Each request must be detailed in nature with a mathematical calculation which can be validated. Requests which are not detailed with supporting information will be denied..
+    <div class="tooltip-arrow" data-popper-arrow></div>
+  </div>
+
+  <textarea
+    id="justification"
+    v-model="form.justification"
+    :maxlength="1000"
+    rows="4"
+    required
+    placeholder="Provide a detailed explanation…"
+    class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+  ></textarea>
+  <p class="text-gray-500 text-xs mt-1">{{ form.justification.length }} / 1000</p>
+  <p v-if="errors.justification" class="text-red-600 text-sm mt-1">{{ errors.justification }}</p>
+</div>
+
+      <!-- Date Range stays in its own grid if you like two columns—but ensure it’s outside the first grid -->
+      <!-- <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 mt-6"> -->
+      <!-- Start Date -->
+      <!-- <div>
+      <label for="startDate" class="block text-sm font-semibold">Start Date</label>
+      <input id="startDate" type="date" v-model="form.startDate" required
+             class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" />
+      <p v-if="errors.startDate" class="text-red-600 text-sm mt-1">{{ errors.startDate }}</p>
+    </div> -->
+      <!-- End Date -->
+      <!-- <div>
+      <label for="endDate" class="block text-sm font-semibold">End Date</label>
+      <input id="endDate" type="date" v-model="form.endDate" required
+             class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" />
+      <p v-if="errors.endDate" class="text-red-600 text-sm mt-1">{{ errors.endDate }}</p>
+    </div>
+  </div> -->
+
+
+
+
+      <!-- Week Range Selection (paste instead of date inputs) -->
+      <div>
+        <label for="wk_start" class="block text-sm font-semibold">Start Week</label>
+        <select id="wk_start" v-model="form.wk_start" @change="onStartChange"
+          class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500">
+          <option disabled value="">-------------</option>
+          <option v-for="row in weekOptions" :value="row[2]">Week {{ row[1] }}, {{ row[2] }} (Saturday)</option>
+        </select>
+        <p v-if="errors.wk_start" class="text-red-600 text-sm mt-1">{{ errors.wk_start }}</p>
+      </div>
+
+
+
+  
+
+
+      <div>
+        <label for="wk_end" class="block text-sm font-semibold">End Week</label>
+        <select id="wk_end" v-model="form.wk_end" @change="onEndChange"
+          class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500">
+          <option disabled value="">-------------</option>
+          <option v-for="row in weekOptions" :value="row[2]">Week {{ row[1] }}, {{ row[3] }} (Friday)</option>
+        </select>
+        <p v-if="errors.wk_end" class="text-red-600 text-sm mt-1">{{ errors.wk_end}}</p>
+      </div>
+
+
+
+      <!-- <div>
+  <label for="wk_end" class="block text-sm font-semibold">End Week</label>
+  <select
+    id="wk_end"
+    v-model="form.endWeek"
+    @change="onEndChange"
+    class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500"
+  >
+    <option disabled value="">------------</option>
+    <option v-for="row in weekOptions" :value="row.B_FIN_NBR">{{ row.B_FIN_NAME }} ({{ row.B_FIN_NBR }})</option>
+
+  </select>
+  <p v-if="errors.endWeek" class="text-red-600 text-sm mt-1">{{ errors.endWeek }}</p>
+</div> -->
+
+
+
+      <!-- for hidden tag just below :  -->
+      <input type="hidden" id="fy_start" name="fy_start" />
+      <input type="hidden" id="fy_end" name="fy_end" />
+
+
+
+
+      <!-- Attachment -->
+      <div>
+        <label for="attachment" class="block text-sm font-semibold">Attachment (optional, ≤10MB)</label>
+        <input
+          id="attachment"
+          type="file"
+          accept=".pdf,.jpg,.jpeg,.png,.txt,.csv,application/pdf,image/jpeg,image/png,text/plain"
+          @change="onFileChange"
+          class="mt-1 block w-full text-sm text-gray-600 file:mr-4 file:py-2 file:px-4
+                file:rounded-lg file:border-0 file:text-sm file:font-semibold
+                file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
+
+        <p class="text-gray-500 text-xs mt-1">{{ form.fileName }}</p>
+
+        <p class="text-xs text-gray-500 mt-1">
+          Allowed: PDF, JPG, PNG, TXT, CSV (≤ 10 MB). For Word/Excel/PowerPoint, please upload as PDF.
+        </p>
+
+        <p v-if="errors.file" class="text-red-600 text-sm mt-1">{{ errors.file }}</p>
+      </div>
+
+      <!-- Submit -->
+      <button id="submitBtn" type="submit" class="w-full py-3 text-white font-bold rounded-lg shadow-md transition btn-muted">
+        Submit Request
+      </button>
+    </form>
+  </div>
+
+  <!-- Success Modal -->
+  <div id="submitModal" tabindex="-1" aria-hidden="true"
+    class="fixed inset-0 flex items-center justify-center bg-black/50 hidden">
+    <div class="bg-white rounded-lg shadow-lg p-6 max-w-sm text-center">
+      <h2 class="text-xl font-semibold mb-4">✅ Request Submitted</h2>
+      <p class="mb-6">Your flex-time request has been submitted and is under review.</p>
+      <button id="closeModal" type="button" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+        Close
+      </button>
+    </div>
+  </div>
+</body>
+
+</html>
+
+
+
+
+
+
+
+
+
+index.js
+
+
+import { createApp } from 'https://cdnjs.cloudflare.com/ajax/libs/vue/3.5.13/vue.esm-browser.min.js';
+import { initFlowbite, Modal } from 'https://esm.sh/flowbite';
+
+createApp({
+  data() {
+    return {
+      serviceFolder: '/ref/api/v1/toolbox/flex/',
+      user: {},
+      csawUserObject: null,
+      myCsawAccess: null,
+      facilities: null,
+      weekOptions: null,
+      
+      form: {
+        facility: '',
+        craft: '',
+        operation: '',
+        operationCode: '',
+        hours: null,
+        justification: '',
+        wk_start: '',
+        wk_end: '',
+        file: null,
+        fileName: ''
+      },
+      errors: {},
+      submitStatus: '',
+      lastRequestId: null,
+
+      // NEW: all possible LDCs with their display names
+      ldcList: [
+        { ldc: 41, name: 'Unit Distribution — Automated' },
+        { ldc: 42, name: 'Customer Services' },
+        { ldc: 43, name: 'Unit Distribution — Manual' },
+        { ldc: 44, name: 'Post Office Box Distribution' },
+        { ldc: 45, name: 'Window Services' },
+        { ldc: 48, name: 'Admin/Misc — Mixed' }
+      ],
+
+      operationsList: [
+        // LDC 41
+        { ldc: 41, code: '9050', name: 'ADUS Parcels' },
+        { ldc: 41, code: '9100', name: 'ADUS Sunday Parcels' },
+        { ldc: 41, code: '9090', name: 'ADUS SCF Volume' },
+        { ldc: 41, code: '3150', name: 'SDUS Parcels' },
+        { ldc: 41, code: '3170', name: 'SDUS Sunday Parcels' },
+        { ldc: 41, code: '3190', name: 'SDUS SCF Volume' },
+        { ldc: 41, code: '9080', name: 'ADUS Bundles Volume' },
+        { ldc: 41, code: '3180', name: 'SDUS Bundles Volume' },
+
+        // LDC 42 (all codes 6370, different names)
+        { ldc: 42, code: '6370', name: 'Postage Due/BRM/MRS/PRS' },
+        { ldc: 42, code: '6370', name: 'Processed Letters (BRM)' },
+        { ldc: 42, code: '6370', name: 'Processed Flats (BRM)' },
+        { ldc: 42, code: '6370', name: 'Processed Parcels (BRM)' },
+        { ldc: 42, code: '6370', name: 'Processed Postcards (BRM)' },
+        { ldc: 42, code: '6370', name: 'Processed Letters (PD)' },
+        { ldc: 42, code: '6370', name: 'Processed Flats (PD)' },
+        { ldc: 42, code: '6370', name: 'Processed Parcels (PD)' },
+        { ldc: 42, code: '6370', name: 'LDC 42 Flex Time' },
+        { ldc: 42, code: '6370', name: 'Merchandise Return Service' },
+        { ldc: 42, code: '6370', name: 'Parcel Return Service (PRS)' },
+
+        // LDC 43
+        { ldc: 43, code: '1610', name: 'Manual Letter Distribution' },
+        { ldc: 43, code: '1720', name: 'Manual Flat Distribution' },
+        { ldc: 43, code: '0770', name: 'Sunday Parcels Distribution' },
+        { ldc: 43, code: '0790', name: 'Packages/Sprs Distribution' },
+        { ldc: 43, code: '0790', name: 'Manual PPVS' },
+        { ldc: 43, code: '2410', name: 'F4 Allied Distribution (Clerk)' },
+        { ldc: 43, code: '1710', name: 'LDC 43 Allied (Mailhandler)' },
+        { ldc: 43, code: '2410', name: 'LDC 43 Flex Time (Clerk)' },
+        { ldc: 43, code: '1710', name: 'LDC 43 Flex Time (Mailhandler)' },
+        { ldc: 43, code: '2410', name: 'Dock Transfer AM (Clerk)' },
+        { ldc: 43, code: '1710', name: 'Dock Transfer AM (Mailhandler)' },
+        { ldc: 43, code: '2410', name: 'Tier 1 Allied Distribution (Clerk)' },
+        { ldc: 43, code: '1710', name: 'Tier 1 Allied Distribution (Mailhandler)' },
+        // { ldc: 43, code: '2410', name: 'LDC 43 Tier 1 Other Time (Clerk)' },
+        // { ldc: 43, code: '1710', name: 'LDC 43 Tier 1 Other Time (Mailhandler)' },
+        { ldc: 43, code: '2410', name: 'Daily AM Hashing Container (Clerk)' },
+        { ldc: 43, code: '1710', name: 'Daily AM Hashing Container (Mailhandler)' },
+        // { ldc: 43, code: '0770', name: 'Dynamic Route Spread' },
+
+        // LDC 44.
+        
+        { ldc: 44, code: '7690', name: 'Box Section' },
+        { ldc: 44, code: '7690', name: 'PO Box Manual Letter Volume' },
+        { ldc: 44, code: '7690', name: 'PO Box DPS Letter Volume' },
+        { ldc: 44, code: '7690', name: 'PO Box Manual Flat Volume' },
+        { ldc: 44, code: '7690', name: 'PO Box Parcels' },
+        { ldc: 44, code: '7690', name: 'LDC 44 Flex Time' },
+
+        // LDC 45
+        { ldc: 45, code: '3550', name: 'Window Services' },
+        { ldc: 45, code: '3550', name: 'SSA Transactions' },
+        { ldc: 45, code: '3550', name: 'Bulletproof Glass' },
+        { ldc: 45, code: '3550', name: 'WOS Ancillary (54%)' },
+        { ldc: 45, code: '3550', name: 'Open/Close' },
+        { ldc: 45, code: '3550', name: 'SSK Transactions' },
+        { ldc: 45, code: '3550', name: 'LDC 45 Flex Time' },
+
+        // LDC 48
+        { ldc: 48, code: '7420', name: 'Bulk Mailings' }, //changed it from Average Mailing to Bulk Mailing
+        { ldc: 48, code: '7420', name: 'PO Box Accountables' },
+        { ldc: 48, code: '7420', name: 'Caller Services (Paid)' },
+        { ldc: 48, code: '7420', name: 'MIO On Revenue Pickup' },
+        { ldc: 48, code: '5440', name: 'Carrier Accountables (CAGE)' },
+        { ldc: 48, code: '7420', name: 'Carrier Accountables (CART)' },
+        { ldc: 48, code: '5440', name: 'Carrier Accountables (ON…) CAGE' },
+        { ldc: 48, code: '7420', name: 'Carrier Accountables (ON…) CART' },
+        { ldc: 48, code: '7420', name: 'CFS/PARS Prep' },
+        { ldc: 48, code: '7420', name: 'Collections (Clerk)' },
+        { ldc: 48, code: '5590', name: 'Collections (Mailhandler)' },
+        { ldc: 48, code: '7420', name: 'Dispatch (Clerk)' },
+        { ldc: 48, code: '5590', name: 'Dispatch (Mailhandler)' },
+        // { ldc: 48, code: '2280', name: 'Express Mail Delivery (F4)' },
+        { ldc: 48, code: '7420', name: 'Firm Holdouts' },
+        // { ldc: 48, code: '7420', name: 'LDC 48 Flex Time (Clerk)' },
+        // { ldc: 48, code: '5590', name: 'LDC 48 Flex Time (Mailhandler)' },
+        { ldc: 48, code: '7420', name: 'My PO Credit' },
+        { ldc: 48, code: '6210', name: 'Offsite Travel/Admin' },
+        { ldc: 48, code: '7420', name: 'Open & Close Building' }, //changed from supplies & .. to building 
+        { ldc: 48, code: '7420', name: 'PO Box Maintenance' },
+        { ldc: 48, code: '7420', name: 'Premium Forwarding Service' },
+        { ldc: 48, code: '7420', name: 'Remote Forwarding Service' },
+        { ldc: 48, code: '7420', name: 'Non AAU Scanning (Clerk)' },   //Changed it from scans to scanning 
+        { ldc: 48, code: '5590', name: 'Non AAU Scanning (Mailhandler)' }, //Changed it from scans to scanning 
+        { ldc: 48, code: '7420', name: 'SSK Maintenance' },
+        { ldc: 48, code: '5580', name: 'TACS (Lead Clerks Only)' },
+        { ldc: 48, code: '7420', name: 'Telephone' },
+        { ldc: 48, code: '7420', name: 'UBBM' },
+        { ldc: 48, code: '5580', name: 'Validate PS Form 1412(s)' },
+        { ldc: 48, code: '5580', name: 'Verify Deposit & Transmit' },
+        { ldc: 48, code: '7420', name: 'Sunday / Holiday Hub (Clerk)' },
+        { ldc: 48, code: '5590', name: 'Sunday / Holiday Hub (Mailhandler)' },
+        { ldc: 48, code: '7420', name: 'Scan Where You Band' },
+        { ldc: 48, code: '7420', name: 'HCR Seals' },
+        { ldc: 48, code: '7420', name: 'Registers' },
+        { ldc: 48, code: '7420', name: 'Pouch Setup & Labeling (Clerk)' },
+        { ldc: 48, code: '5590', name: 'Pouch Setup & Labeling (Mailhandler)' },
+        { ldc: 48, code: '7420', name: 'Dock Transfer PM (Clerk)' },
+        { ldc: 48, code: '5590', name: 'Dock Transfer PM (Mailhandler)' },
+        // { ldc: 48, code: '7420', name: 'LDC 48 Tier 1 Other Time (Clerk)' },
+        // { ldc: 48, code: '5590', name: 'LDC 48 Tier 1 Other Time (Mailhandler)' },
+        { ldc: 48, code: '7420', name: 'Daily PM Hashing Container (Clerk)' },
+        { ldc: 48, code: '5590', name: 'Daily PM Hashing Container (Mailhandler)' }
+      ]
+    };
+  },
+
+  computed: {
+  // which LDCs are allowed by craft?
+  filteredLDCs() {
+    if (this.form.craft === 'mailhandler')
+      return this.ldcList.filter((l) => [43, 48].includes(l.ldc));
+    if (this.form.craft === 'clerk')
+      return this.ldcList.filter((l) => [41, 42, 43, 44, 45, 48].includes(l.ldc));
+    return [];
+  },
+
+  // Enforce Craft + LDC rules and then dedupe codes
+  filteredOperationCodes() {
+    const ldc   = Number(this.form.operation);
+    const craft = String(this.form.craft || '').toLowerCase();
+    if (!ldc) return [];
+
+    const inLdc = this.operationsList.filter(o => o.ldc === ldc);
+
+    const excludeCodesForMailhandlerByLdc = {
+      43: new Set(['1610','1720','2410']),
+      48: new Set(['5440','5580','7420'])
+    };
+    const excludeCodesForClerkByLdc = {
+      43: new Set(['1710']),
+      48: new Set(['5590'])
+    };
+
+    const filtered = inLdc.filter(o => {
+      const nm = String(o.name || '').toLowerCase();
+      if (craft === 'clerk') {
+        if (nm.includes('mailhandler')) return false;
+        if (excludeCodesForClerkByLdc[ldc]?.has(o.code)) return false;
+        return true;
+      }
+      if (craft === 'mailhandler') {
+        if (nm.includes('clerk')) return false;
+        if (excludeCodesForMailhandlerByLdc[ldc]?.has(o.code)) return false;
+        return true;
+      }
+      return true;
+    });
+
+    const seen = new Set();
+    const codes = [];
+    for (const o of filtered) {
+      if (!seen.has(o.code)) { seen.add(o.code); codes.push(o.code); }
+    }
+    return codes;
+  },
+
+  // NEW: options for the Operation Number dropdown (used for rendering labels)
+  filteredOperationOptions() {
+    const ldc   = Number(this.form.operation);
+    const craft = String(this.form.craft || '').toLowerCase();
+    if (!ldc) return [];
+
+    const inLdc = this.operationsList.filter(o => o.ldc === ldc);
+
+    const excludeCodesForMailhandlerByLdc = {
+      43: new Set(['1610','1720','2410']),
+      48: new Set(['5440','5580', '7420'])
+    };
+    const excludeCodesForClerkByLdc = {
+      43: new Set(['1710']),
+      48: new Set(['5590'])
+    };
+
+    const filtered = inLdc.filter(o => {
+      const nm = String(o.name || '').toLowerCase();
+      if (craft === 'clerk') {
+        if (nm.includes('mailhandler')) return false;
+        if (excludeCodesForClerkByLdc[ldc]?.has(o.code)) return false;
+        return true;
+      }
+      if (craft === 'mailhandler') {
+        if (nm.includes('clerk')) return false;
+        if (excludeCodesForMailhandlerByLdc[ldc]?.has(o.code)) return false;
+        return true;
+      }
+      return true;
+    });
+
+    if (ldc === 43 || ldc === 48) {
+      // show ALL distinct (code,name) combos
+      const seen = new Set(); // code|name
+      const opts = [];
+      for (const o of filtered) {
+        const k = `${o.code}|${o.name.toLowerCase()}`;
+        if (!seen.has(k)) { seen.add(k); opts.push({ code: o.code, name: o.name }); }
+      }
+      return opts;
+    }
+
+    // other LDCs: keep one per code
+    const seenCodes = new Set();
+    const opts = [];
+    for (const o of filtered) {
+      if (!seenCodes.has(o.code)) { seenCodes.add(o.code); opts.push({ code: o.code, name: o.name }); }
+    }
+    return opts;
+  }
+},// <— keep this comma because methods: follows
+
+
+
+
+
+
+  
+
+  methods: {
+    // Authentication & data fetching (unchanged)
+    async authenticate() {
+      try {
+        await axios.get(`/ref/api/v2/authenticate.cfc?method=get`).then((res) => {
+          if (res.data) this.user = res.data.data;
+        });
+        await this.getCsawAccess();
+        await this.getMyFacilities();
+        await this.loadWeekOptions();
+      } catch (e) {
+        console.error('Auth error', e);
+      }
+    },
+    async getCsawAccess() {
+      try {
+        await axios
+          .get(
+            `${this.serviceFolder}csaw/access.cfc?method=getAccess&userId=${encodeURIComponent(
+              this.user.ace_id
+            )}`
+          )
+          .then((res) => {
+            if (res.data) this.csawUserObject = res.data;
+          });
+      } catch (e) {
+        console.error('Access error', e);
+      }
+    },
+    async getMyFacilities() {
+      try {
+        await axios
+          .get(
+            `${
+              this.serviceFolder
+            }csaw/access.cfc?method=getMyFacilities&userid=${encodeURIComponent(this.user.ace_id)}`
+          )
+          .then((res) => {
+            if (res.data) this.facilities = res.data;
+          });
+      } catch (e) {
+        console.error('Facilities error', e);
+      }
+    },
+
+  ensureOperationCodeValid() {
+  if (!this.filteredOperationCodes.includes(this.form.operationCode)) {
+    this.form.operationCode = '';
+  }
+},
+
+
+  isDisallowedForMailhandler48(name, code) {
+    const nm = String(name || '').toLowerCase();
+    const cd = String(code || '').trim();
+
+    // 1) 7240 Bulk Mailing (accept "bulk mailing" or "bulk mailings")
+    if (cd === '7240' && (nm.includes('bulk mailing') || nm.includes('bulk mailings'))) return true;
+
+    // 2) HCR Seals (code may vary)
+    if (nm.includes('hcr seals')) return true;
+
+    // 3) Specific 7420 disallows
+    if (cd === '7420') {
+      if (nm.includes('po box accountables')) return true;
+      // handles "Carrier Accountables (Cart)" and "Carrier Accountables (ON..) Cart"
+      if (nm.includes('carrier accountables') && nm.includes('cart')) return true;
+      if (nm.includes('cfs/pars')) return true;              // matches "CFS/PARS", "CFS/PARS Prep"
+      if (nm.includes('premium forwarding service')) return true;
+      if (nm.includes('remote forwarding service')) return true;
+      if (nm.includes('registers')) return true;
+    }
+
+    return false;
+  },
+
+//     async loadWeekOptions() {
+//   try {
+//     const res = await axios.get(`${this.serviceFolder}FlexService.cfc?method=getWeekOptions&returnformat=json`);
+//     if (res.data) {
+//       const raw = res.data.DATA || res.data.data || [];
+//       // raw rows = [ fiscalYear, week, startDate, endDate ]
+//       this.weekOptions = raw.map(row => {
+//         const startISO = moment(row[2]).startOf('day').format('YYYY-MM-DD');
+//         const endISO   = moment(row[3]).startOf('day').format('YYYY-MM-DD');
+//         return [row[0], row[1], startISO, endISO];
+//       });
+//     }
+//   } catch (e) {
+//     console.error("Couldn't load weeks", e);
+//   }
+// },
+
+// asDate(v) {
+//   if (!v) return null;
+//   // Accept ISO, ISO with time, or common US formats just in case
+//   const m = moment(v, [
+//     moment.ISO_8601, 'YYYY-MM-DD', 'YYYY/MM/DD',
+//     'MM/DD/YYYY', 'MMM D, YYYY', 'MMMM D, YYYY'
+//   ], true);
+//   return m.isValid() ? m.toDate() : null;
+// },
+
+
+async loadWeekOptions() {
+  try {
+    const res = await axios.get(`${this.serviceFolder}flex.cfc?method=getWeekOptions&returnformat=json`);
+    if (res.data) {
+      const raw = res.data.DATA || res.data.data || [];
+      // accepted server date shapes (strict)
+      const FMT = [
+        'YYYY-MM-DD',
+        'YYYY-MM-DD HH:mm',
+        'YYYY-MM-DD HH:mm:ss',
+        'YYYY-MM-DD HH:mm:ss.SSS',
+        'YYYY-MM-DDTHH:mm:ssZ',
+        'YYYY-MM-DDTHH:mm:ss.SSSZ',
+        'MM/DD/YYYY' // just in case
+      ];
+      const toISO = (v) => {
+        if (!v) return '';
+        // numbers → epoch (sec or ms)
+        if (typeof v === 'number') {
+          const ms = v < 1e12 ? v * 1000 : v;
+          return moment(ms).format('YYYY-MM-DD');
+        }
+        // strings → try strict against common SQL/ISO shapes
+        let m = moment(v, FMT, true);
+        if (!m.isValid()) m = moment.parseZone(v); // handles ISO with offsets
+        return m.isValid() ? m.format('YYYY-MM-DD') : '';
+      };
+
+      // raw row: [fiscalYear, week, startDate, endDate]
+      this.weekOptions = raw.map(row => {
+        const startISO = toISO(row[2]);
+        const endISO   = toISO(row[3]);
+        return [row[0], row[1], startISO, endISO];
+      });
+    }
+  } catch (e) {
+    console.error("Couldn't load weeks", e);
+  }
+},
+
+
+
+
+asDate(v) {
+  if (!v) return null;
+  const FMT = [
+    'YYYY-MM-DD',
+    'YYYY-MM-DD HH:mm',
+    'YYYY-MM-DD HH:mm:ss',
+    'YYYY-MM-DD HH:mm:ss.SSS',
+    'YYYY-MM-DDTHH:mm:ssZ',
+    'YYYY-MM-DDTHH:mm:ss.SSSZ',
+  ];
+  // Prefer strict known formats; fall back to parseZone for ISO with offset
+  let m = moment(v, FMT, true);
+  if (!m.isValid()) m = moment.parseZone(v);
+  return m.isValid() ? m.toDate() : null;
+},
+
+
+
+onStartChange() {
+  const start = this.asDate(this.form.wk_start);
+  const end   = this.asDate(this.form.wk_end);
+  if (start && end && end < start) {
+    // Nudge end up to start if user previously picked an earlier week
+    this.form.wk_end = this.form.wk_start;
+  }
+  this.errors.wk_end = '';
+},
+
+onEndChange() {
+  const start = this.asDate(this.form.wk_start);
+  const end   = this.asDate(this.form.wk_end);
+  if (start && end && end < start) {
+    this.errors.wk_end = 'End date can’t be before start date.';
+  } else {
+    this.errors.wk_end = '';
+  }
+},
+
+
+    onFileChange(e) {
+  const file = e.target.files[0];
+  if (!file) {
+    this.form.file = null;
+    this.form.fileName = '';
+    this.errors.file = '';
+    return;
+  }
+
+  const maxBytes = 10 * 1024 * 1024;
+  if (file.size > maxBytes) {
+    this.errors.file = 'File must be 10 MB or smaller.';
+    this.form.file = null;
+    this.form.fileName = '';
+    return;
+  }
+
+  // Types we handle server-side without third-party tools
+  const okMimes = new Set([
+    'application/pdf', 'image/jpeg', 'image/png', 'text/plain'
+  ]);
+  const okExts = ['.pdf','.jpg','.jpeg','.png','.txt','.csv'];
+
+  const nameLower = file.name.toLowerCase();
+  const hasOkExt  = okExts.some(ext => nameLower.endsWith(ext));
+  const hasOkMime = okMimes.has(file.type);
+
+  if (!hasOkExt && !hasOkMime) {
+    this.errors.file = 'Unsupported type. Please upload PDF, JPG, PNG, TXT, or CSV (Office files should be saved as PDF).';
+    this.form.file = null;
+    this.form.fileName = '';
+    return;
+  }
+
+  this.errors.file = '';
+  this.form.file = file;
+  this.form.fileName = file.name;
+
+    },
+    validate() {
+  this.errors = {};
+  if (!this.form.facility)      this.errors.facility = 'Please select a facility.';
+  if (!this.form.craft)         this.errors.craft = 'Please select a craft.';
+  if (!this.form.operation)     this.errors.operation = 'Please select an operation.';
+  if (!this.form.operationCode) this.errors.operationCode = 'Please select an operation number.';
+  if (!this.form.hours || this.form.hours < 0.01 || this.form.hours > 100)
+    this.errors.hours = 'Hours must be between 0.01 and 100';
+  if (!this.form.justification || !this.form.justification.trim().length)
+    this.errors.justification = 'Justification is required.';
+  if (!this.form.wk_start) this.errors.wk_start = 'Start date required.';
+  if (!this.form.wk_end)   this.errors.wk_end   = 'End date required.';
+
+  const start = this.asDate(this.form.wk_start);
+  const end   = this.asDate(this.form.wk_end);
+  if (start && end && end < start) {
+    this.errors.wk_end = 'End date can’t be before start date.';
+  }
+
+  return Object.keys(this.errors).length === 0;
+},
+
+async notifyAfterSubmit() {
+  try {
+    if (!this.lastRequestId) return;
+    const res = await axios.post(
+      `${this.serviceFolder}flex.cfc?method=sendSubmitEmails&returnformat=json`,
+      { requestId: this.lastRequestId || 0 },
+      { validateStatus: () => true } // <-- fixed spelling
+    );
+    console.log('sendSubmitEmails =>', res.status, res.data);
+  } catch (e) {
+    console.error('notifyAfterSubmit failed', e);
+  }
+},
+
+    async submitRequest() {
+      if (!this.validate()) return;
+      // Disable the submit button using DOM manipulation
+      const submitBtn = document.getElementById('submitBtn');
+      if (submitBtn) submitBtn.disabled = true;
+
+      const payload = new FormData();
+      Object.entries(this.form).forEach(([k, v]) => {
+        if (k === 'file' && v) {
+          // payload.append('filename', this.form.file.name);
+          // payload.append('filetype', this.form.file.type);
+          // payload.append('filecontent', this.form.file.TODO); //
+
+          payload.append('file', this.form.file, this.form.file.name);     // real bytes
+          payload.append('filename', this.form.file.name);                  // metadata
+          payload.append('filetype', this.form.file.type || 'application/pdf');
+
+        } else if (k !== 'fileName') payload.append(k, v);
+      });
+
+      // Optional: give the server a direct email for the submitter
+if (this.user?.email)        payload.append('notifyEmail', this.user.email);
+else if (this.user?.mail)    payload.append('notifyEmail', this.user.mail);
+else if (this.user?.user_email) payload.append('notifyEmail', this.user.user_email);
+
+      try {
+        const response = await axios.post(
+          `${this.serviceFolder}flex.cfc?method=post&returnformat=json`,
+          payload,
+          // { headers: { 'Content-Type': 'application/json' } }
+        );
+        this.submitStatus = 'Request submitted successfully!';
+        if (response.data['SUCCESS'] === true) {
+
+           this.lastRequestId = response.data.REQUESTID || null;
+          document.getElementById('submitModal').classList.remove('hidden');
+          // reset the form
+
+          this.form = {
+            facility: '',
+            craft: '',
+            operation: '',
+            operationCode: '',
+            hours: null,
+            justification: '',
+            wk_start: '',
+            wk_end: '',
+            file: null,
+            fileName: ''
+          };
+        } else {
+          // display failure modal
+          document.getElementById('failureModal').classList.remove('hidden');
+        }
+      } catch (err) {
+        console.error(err);
+        this.submitStatus = 'Submission failed, please try again.';
+      } finally {
+        if (submitBtn) submitBtn.disabled = false;
+      }
+      // Re-enable the button
+    }
+  },
+
+  watch: {
+    'form.craft'()    { this.ensureOperationCodeValid(); },
+'form.operation'(){ this.ensureOperationCodeValid(); },
+  },
+  
+  mounted() {
+    console.clear();
+    initFlowbite();
+    this.authenticate();
+    console.log('App mounted', this);
+    document.getElementById('closeModal').addEventListener('click', async () => {
+  document.getElementById('submitModal').classList.add('hidden');
+
+  // ⬇️ fire the emails
+  await this.notifyAfterSubmit();
+
+  // then navigate to dashboard
+  window.location.href = 'https://eagnmnwbp161f.usps.gov/ref/toolbox/flex/dashboard.html';
+});
+  }
+}).mount('#app');
+
+
+
+
+
+
+
+
+
+
+        
+
+
+flex.cfc
+        
+
+
+        component 
+{
+  // ------------------------------------------------------------
+  // Envelope helpers (added to match sample formatting)
+  // ------------------------------------------------------------
+  private struct function newResp() {
+    return {
+      status: 200,
+      headers: { explanation: "" },
+      content: { status: "success", message: "", data: [], error: [] }
+    };
+  }
+
+  private void function addError(
+    required struct resp,
+    required numeric status,
+    required string title,
+    required string detail
+  ) {
+    arrayAppend(arguments.resp.content.error, {
+      status: toString(arguments.status),
+      title: arguments.title,
+      detail: arguments.detail
+    });
+    arguments.resp.headers.explanation = arguments.title;
+    arguments.resp.status = arguments.status;
+    arguments.resp.content.status = "fail";
+  }
+
+  private void function setJsonHeader() {
+    cfheader(name = "Content-Type", value = "application/json; charset=UTF-8");
+  }
+
+  // Keep exact/desired key casing when serializing query rows
+  private array function queryToArrayWithCase(required query q, required array colNames) {
+    var rows = [];
+    for (var i = 1; i <= q.recordCount; i++) {
+      var row = {};
+      for (var c in colNames) {
+        row[c] = q[c][i]; // CF is case-insensitive for query column lookup
+      }
+      arrayAppend(rows, row);
+    }
+    return rows;
+  }
+
+  // Generic fallback (not used by getWeekOptions, but kept for parity with sample)
+  private array function queryToArray(required query q) {
+    var rows = [];
+    for (var i = 1; i <= q.recordCount; i++) {
+      arrayAppend(rows, queryGetRow(q, i));
+    }
+    return rows;
+  }
+
+
+  /**
+   * Returns the fiscal‐year week 1..52 rows (FY26–FY27 window)
+   * Now formatted like sample (envelope + explicit column casing)
+   */
+remote any function getWeekOptions()
+    returnformat="json"
+    produces="application/json"
+{
+    // -----------------------------------------------------
+    // Set JSON response header
+    // -----------------------------------------------------
+    cfheader(
+        name = "Content-Type",
+        value = "application/json;charset=UTF-8"
+    );
+
+    try {
+        // -------------------------------------------------
+        // Fiscal-year date ranges
+        // -------------------------------------------------
+        // FY25: 2024-09-28 (Sat) .. 2025-09-26 (Fri)
+        // FY26: 2025-09-27 (Sat) .. 2026-09-25 (Fri)
+        // FY27: 2026-09-26 (Sat) .. 2027-09-24 (Fri)
+        var startFY26 = createDate(2025, 9, 27);
+        var endFY27   = createDate(2027, 9, 24);
+
+        // -------------------------------------------------
+        // Query weeks from Master_Calendar for FY26 & FY27
+        // -------------------------------------------------
+        var q = queryExecute(
+            "
+            WITH Ranked AS (
+                SELECT
+                    cal_fy_long      AS fiscalYear,
+                    cal_fy_wk        AS week,
+                    cal_date_beg_wk  AS startDate,
+                    cal_date_end_wk  AS endDate,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY cal_fy_long, cal_fy_wk
+                        ORDER BY cal_id
+                    ) AS rn
+                FROM PCSV_dw.dbo.Master_Calendar
+                WHERE cal_fy_long IN (2026, 2027)
+                  AND cal_date_beg_wk >= :startDate
+                  AND cal_date_end_wk <= :endDate
+            )
+            SELECT
+                fiscalYear,
+                week,
+                startDate,
+                endDate
+            FROM Ranked
+            WHERE rn = 1
+            ORDER BY fiscalYear, week
+            ",
+            {
+                startDate = { value = startFY26, cfsqltype = "cf_sql_date" },
+                endDate   = { value = endFY27,   cfsqltype = "cf_sql_date" }
+            },
+            { datasource = "pcsv_dw" }
+        );
+
+        // -------------------------------------------------
+        // Return query directly (ColdFusion serializes to JSON)
+        // -------------------------------------------------
+        return q;
+
+    } catch (any e) {
+        // -------------------------------------------------
+        // Handle errors gracefully (return structured JSON)
+        // -------------------------------------------------
+        var err = {
+            error   : true,
+            message : "getWeekOptions failed: " & e.message,
+            detail  : (structKeyExists(e, "detail") ? e.detail : "")
+        };
+        return err;
+    }
+}
+
+  /** CAT server detection – robust short/FQDN match with a one-time log */
+  private boolean function isCatServer() output="false" {
+    var hostName  = "";
+    var shortHost = "";
+    var catName   = "";
+
+    try {
+      var inet = createObject("java", "java.net.InetAddress");
+      hostName  = inet.getLocalHost().getHostName();        // e.g. eagnmnwbc1db.usps.gov OR eagnmnwbc1db
+      shortHost = listFirst(hostName, ".");                 // always the short name
+    } catch (any __inet) {
+      writeLog(file="application", text="isCatServer: hostname lookup failed: #__inet.message#");
+      return false;
+    }
+
+    try {
+      var q = queryExecute("
+          SELECT TOP 1 srv_name
+          FROM var_servers.dbo.var_servers WITH (NOLOCK)
+          WHERE srv_active_ind=1 AND srv_web_ind=1 AND srv_cat_ind=1
+        ", {}, { datasource: "var_exec_cdv" });
+      if (q.recordCount) catName = trim(q.srv_name[1]);
+    } catch (any __db) {
+      writeLog(file="application", text="isCatServer: CAT lookup failed: #__db.message# :: #__db.detail#");
+      return false;
+    }
+
+    // Log what we compare (helps once, then you can remove)
+    writeLog(file="application", text="isCatServer check → host=#hostName# short=#shortHost# cat=#catName#");
+
+    // Accept match on short host OR contains either way (handles FQDN vs short)
+    return (
+      len(catName)
+      AND (
+        compareNoCase(shortHost, catName) EQ 0
+        OR findNoCase(catName, hostName) GT 0
+        OR findNoCase(hostName, catName) GT 0
+      )
+    );
+  }
+
+
+
+  /*
+   * INSERT flex-time request + OPTIONAL attachment into FILESTREAM table.
+   * Accepts either multipart/form-data (FormData) or JSON.
+   * Behavior unchanged.
+   */
+  function post(
+    string facility       = "",
+    string craft          = "",
+    numeric operation     = 0,         // LDC
+    string  operationCode = "",
+    numeric hours         = 0,
+    string  justification = "",
+    date    wk_start      = "",
+    date    wk_end        = "",
+    any     file          = "",        // multipart field name is "file"
+    string  filename      = "",
+    string  filetype      = "",
+    string  notifyEmail   = ""
+  ) access="remote" returnFormat="JSON" returnType="any" output="false" {
+
+    var result = { SUCCESS=true, MESSAGE:"", DETAILS:"", REQUESTID=0, ATTACHMENT_SAVED=false };
+
+    // --- Parse body (JSON vs multipart) ---
+    var http = getHTTPRequestData();
+    var ct   = lcase( toString( http.headers["Content-Type"] ?: http.headers["content-type"] ?: "" ) );
+    var payload = {};
+
+    try {
+      if ( findNoCase("application/json", ct) AND len(trim(http.content)) ) {
+        payload = deserializeJSON(http.content);
+      } else {
+        // multipart/form-data → rely on FORM scope
+        payload = {
+          facility      = len(arguments.facility)      ? arguments.facility      : form.facility,
+          craft         = len(arguments.craft)         ? arguments.craft         : form.craft,
+          operation     = arguments.operation          ? arguments.operation     : val(form.operation),
+          operationCode = len(arguments.operationCode) ? arguments.operationCode : toString(form.operationCode),
+          hours         = arguments.hours              ? arguments.hours         : val(form.hours),
+          justification = len(arguments.justification) ? arguments.justification : form.justification,
+          wk_start      = len(arguments.wk_start)      ? arguments.wk_start      : form.wk_start,
+          wk_end        = len(arguments.wk_end)        ? arguments.wk_end        : form.wk_end,
+          filename      = len(arguments.filename)      ? arguments.filename      : ( structKeyExists(form,"filename") ? form.filename : "" ),
+          filetype      = len(arguments.filetype)      ? arguments.filetype      : ( structKeyExists(form,"filetype") ? form.filetype : "" ),
+          notifyEmail   = len(arguments.notifyEmail)   ? arguments.notifyEmail   : ( structKeyExists(form,"notifyEmail") ? form.notifyEmail : "" )
+        };
+      }
+    } catch (any ex) {
+      writeLog(file="application", text="Flex post parse error: " & ex.message & " :: " & ex.detail);
+      return { SUCCESS=false, MESSAGE="Invalid request payload.", DETAILS=ex.detail };
+    }
+
+    var createdByVal = structKeyExists(session,"userACE") ? session.userACE : cgi.remote_user;
+    // Normalize DOMAIN\user → user (use Chr(92) = backslash)
+    if ( find(Chr(92), createdByVal) ) {
+      createdByVal = listLast(createdByVal, Chr(92));
+    }
+
+    writeLog(file="application", text="Flex post payload => " & serializeJSON(payload));
+
+    // --- 1) Insert request & get ID ---
+    try {
+      var insertQ = queryExecute(
+        "
+          INSERT INTO PCSV_dw.dbo.FlexTimeRequests
+            (FacilityID, Craft, LabourDistributionCode, OperationNumber,
+             HoursPerWeek, Justification, StartDate, EndDate, CreatedBy)
+          VALUES
+            (:facilityId, :craft, :ldc, :opnum,
+             CAST(:hoursPerWeek AS DECIMAL(9,2)), :justification, :wk_start, :wk_end, :createdBy);
+
+          SELECT CAST(SCOPE_IDENTITY() AS INT) AS NewID;
+        ",
+        {
+          facilityId   : { value=payload.facility,      cfsqltype="cf_sql_varchar" },
+          craft        : { value=payload.craft,         cfsqltype="cf_sql_varchar" },
+          ldc          : { value=payload.operation,     cfsqltype="cf_sql_integer" },
+          opnum        : { value=payload.operationCode, cfsqltype="cf_sql_varchar" },
+          hoursPerWeek : { value=payload.hours,         cfsqltype="cf_sql_decimal", scale=2 },
+          justification: { value=payload.justification, cfsqltype="cf_sql_varchar" },
+          wk_start     : { value=payload.wk_start,      cfsqltype="cf_sql_date" },
+          wk_end       : { value=payload.wk_end,        cfsqltype="cf_sql_date" },
+          createdBy    : { value=createdByVal,          cfsqltype="cf_sql_varchar" }
+        },
+        { datasource="pcsv_dw" }
+      );
+
+      result.REQUESTID = ( structKeyExists(insertQ, "NewID") AND insertQ.recordCount )
+        ? val(insertQ.NewID[1]) : 0;
+
+      if ( result.REQUESTID LTE 0 ) {
+        return { SUCCESS=false, MESSAGE="Failed to create request (no ID returned)." };
+      }
+    } catch (any e) {
+      writeLog(file="application", text="Flex insert error: " & e.message & " :: " & e.detail);
+      return { SUCCESS=false, MESSAGE=e.message, DETAILS=e.detail };
+    }
+
+    // --- 2) OPTIONAL attachment → FILESTREAM table ---
+    var hadUpload = false;
+    var up = {};
+    var tmpPath = "";
+    var MAX_BYTES = 10 * 1024 * 1024; // 10 MB
+
+    try {
+      if ( findNoCase("multipart/form-data", ct) AND structKeyExists(form, "file") ) {
+        up = fileUpload( getTempDirectory(), "file", "*", "makeunique" );
+        tmpPath   = up.serverDirectory & "/" & up.serverFile;
+        hadUpload = fileExists(tmpPath);
+        if ( hadUpload AND up.fileSize GT MAX_BYTES ) {
+          fileDelete(tmpPath);
+          hadUpload = false;
+          writeLog(file="application", text="Flex upload skipped: exceeds 10 MB (" & up.fileSize & " bytes).");
+        }
+      }
+    } catch (any upErr) {
+      writeLog(file="application", text="Flex upload error: " & upErr.message & " :: " & upErr.detail);
+      hadUpload = false;
+      if ( len(tmpPath) AND fileExists(tmpPath) ) fileDelete(tmpPath);
+    }
+
+    if ( hadUpload ) {
+      try {
+        var fileBytes = fileReadBinary( tmpPath );
+        fileDelete( tmpPath );
+
+        var saveName = len(payload.filename) ? payload.filename : ( up.clientFile ?: up.serverFile );
+        var saveType = len(payload.filetype) ? payload.filetype : ( up.contentType ?: "application/octet-stream" );
+
+        queryExecute(
+          "
+            INSERT INTO PCSV_dw.dbo.FlexTimeFileStorage
+              (FileName, FileType, FileContent, UploadedAt, RequestID, RowGuid)
+            VALUES
+              (:fn, :ft, :fc, GETDATE(), :rid, NEWID())
+          ",
+          {
+            fn  : { value=left(saveName,255),   cfsqltype="cf_sql_varchar" },
+            ft  : { value=left(saveType,100),   cfsqltype="cf_sql_varchar" },
+            fc  : { value=fileBytes,            cfsqltype="cf_sql_blob" },
+            rid : { value=result.REQUESTID,     cfsqltype="cf_sql_integer" }
+          },
+          { datasource="pcsv_dw" }
+        );
+
+        result.ATTACHMENT_SAVED = true;
+      } catch (any insErr) {
+        writeLog(file="application", text="Flex filestream insert error: " & insErr.message & " :: " & insErr.detail);
+        result.ATTACHMENT_SAVED = false;
+      }
+    }
+
+    // --- EMAIL: send receipt to the submitter (non-blocking) ---
+    try {
+      sendSubmitEmail( createdByVal, payload, result );
+    } catch (any mailErr) {
+      writeLog(
+        file = "application",
+        text = "FlexService.post outer mail error: " & mailErr.message & " :: " & mailErr.detail
+      );
+    }
+    // --- end EMAIL block ---
+
+    // --- Done ---
+    result.SUCCESS = true;
+    result.MESSAGE = result.ATTACHMENT_SAVED ? "Request submitted; attachment saved." : "Request submitted; no attachment saved.";
+    return result;
+  }
+
+
+  // ----------------------------------------------------------------------
+  // Helper: send the submit receipt email (unchanged behavior)
+  // ----------------------------------------------------------------------
+  private void function sendSubmitEmail(
+    required string createdByVal,
+    required struct payload,
+    required struct result
+  ) output="false" {
+
+    // Normalize DOMAIN\user → user (Chr(92) = '\')
+    var backslash = Chr(92);
+    if ( find(backslash, arguments.createdByVal) ) {
+      arguments.createdByVal = listLast(arguments.createdByVal, backslash);
+    }
+
+    // 1) Resolve recipient (CSAW)
+    var toEmail       = "";
+    var submitterName = arguments.createdByVal;
+
+    try {
+      var qMailQ = new Query();
+      qMailQ.setDatasource("pcsv_dw");
+      qMailQ.setSQL("
+          SELECT TOP 1
+                 NULLIF(LTRIM(RTRIM(user_email)),'') AS userEmail,
+                 LTRIM(RTRIM(COALESCE(user_fname,'') + ' ' + COALESCE(user_lname,''))) AS userName
+            FROM PCSV_csaw.dbo.csaw_pw
+           WHERE user_id = ?
+      ");
+      qMailQ.addParam( value = arguments.createdByVal, cfsqltype = "cf_sql_varchar" );
+      var qMail = qMailQ.execute().getResult();
+
+      if ( qMail.recordCount ) {
+        if ( len(trim(qMail.userEmail[1])) ) { toEmail       = trim(qMail.userEmail[1]); }
+        if ( len(trim(qMail.userName[1])) )  { submitterName = trim(qMail.userName[1]); }
+      }
+    } catch (any __lookupErr) {
+      // ignore; fallback below
+    }
+
+    if ( NOT len(toEmail) AND structKeyExists(arguments.payload, "notifyEmail") ) {
+      toEmail = trim( arguments.payload.notifyEmail );
+    }
+
+    // 2) Facility display name (optional)
+    var facilityName = "";
+    try {
+      var qFacQ = new Query();
+      qFacQ.setDatasource("pcsv_dw");
+      qFacQ.setSQL("
+          SELECT TOP 1 B_FIN_NAME
+            FROM PCSV_dw.dbo.var_base
+           WHERE B_FIN_NBR = ?
+      ");
+      qFacQ.addParam( value = arguments.payload.facility, cfsqltype = "cf_sql_varchar" );
+      var qFac = qFacQ.execute().getResult();
+      if ( qFac.recordCount ) { facilityName = qFac.B_FIN_NAME[1]; }
+    } catch (any __facErr) {
+      // ignore
+    }
+
+    // 3) Build reqForEmail (plain struct)
+    var reqForEmail = structNew();
+    reqForEmail.requestId        = arguments.result.REQUESTID;
+    reqForEmail.facilityId       = arguments.payload.facility;
+    reqForEmail.facilityName     = facilityName;
+    reqForEmail.craft            = arguments.payload.craft;
+    reqForEmail.ldc              = arguments.payload.operation;
+    reqForEmail.operationNumber  = arguments.payload.operationCode;
+    reqForEmail.hours            = arguments.payload.hours;
+    reqForEmail.justification    = arguments.payload.justification;
+    reqForEmail.startDate        = arguments.payload.wk_start & "";
+    reqForEmail.endDate          = arguments.payload.wk_end & "";
+    reqForEmail.attachmentSaved  = arguments.result.ATTACHMENT_SAVED;
+    reqForEmail.submitterName    = submitterName;
+    reqForEmail.submitterId      = arguments.createdByVal;
+
+    // 4) Send (DB Mail → CFMAIL fallback) via your MailService
+    try {
+      if ( len(toEmail) ) {
+        var mailer = createObject("component", "rework.globalServices.v1.MailService").init();
+        var ok = mailer.sendFlexSubmission( toEmail, reqForEmail );
+
+        writeLog(
+          file = "application",
+          text = "FlexService.post mail result id=" & arguments.result.REQUESTID &
+                 " to=" & toEmail & " ok=" & ok
+        );
+      } else {
+        writeLog(
+          file = "application",
+          text = "FlexService.post: no recipient email for submitter " & arguments.createdByVal & "; skipping mail."
+        );
+      }
+    } catch (any __sendErr) {
+      writeLog(
+        file = "application",
+        text = "FlexService.post mail exception id=" & arguments.result.REQUESTID &
+               " msg=" & __sendErr.message & " :: " & __sendErr.detail
+      );
+    }
+  }
+
+
+
+  /**
+   * (Optional) Simple download endpoint for latest file on a request.
+   * Behavior unchanged.
+   */
+  function downloadAttachment( required numeric requestID )
+    access="remote" returnFormat="plain" output="true" {
+
+    var q = queryExecute("
+      SELECT TOP 1 FileName, FileType, FileContent
+      FROM PCSV_dw.dbo.FlexTimeFileStorage
+      WHERE RequestID = :rid
+      ORDER BY UploadedAt DESC
+    ", { rid: { value=arguments.requestID, cfsqltype="cf_sql_integer" } }, { datasource="pcsv_dw" });
+
+    if (!q.recordCount) {
+      cfheader(statuscode="404", statustext="Not Found");
+      writeOutput("No attachment found for RequestID=" & arguments.requestID);
+      return;
+    }
+
+    var fn = q.FileName[1];
+    var ft = len(q.FileType[1]) ? q.FileType[1] : "application/octet-stream";
+
+    cfheader(name="Content-Type", value=ft);
+    cfheader(name="Content-Disposition", value='attachment; filename="' & fn & '"');
+    cfcontent(type=ft, variable=q.FileContent[1], reset=true);
+  }
+
+  /**
+   * Compatibility endpoint for index.js::notifyAfterSubmit().
+   * Behavior unchanged (no-op send).
+   */
+  function sendSubmitEmails( numeric requestId = 0 )
+    access="remote" returnFormat="JSON" produces="application/json" output="false" {
+
+    setJsonHeader();
+    // Intentionally NO-OP to avoid double-send; post() dispatches the submit receipt.
+    return { SUCCESS: true, SENT: false, MESSAGE: "Submission receipt was sent during post()." };
+  }
+
+}
+
+
+
+
+
