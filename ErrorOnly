@@ -6,3 +6,55 @@
 "Error","ajp-nio-127.0.0.1-8020-exec-196","12/08/25","21:34:06","V1 API","Element userACE is undefined in SESSION. The specific sequence of files included or processed is: D:\ColdFusion2021\cfusion\wwwroot\ref\api\v1\toolbox\flex\dashboard.cfc, line: 23"
 "Error","ajp-nio-127.0.0.1-8020-exec-188","12/08/25","21:34:06","V1 API","File not found: /ref/api/v1/toolbox/flex/csaw/access.cfc The specific sequence of files included or processed is: D:\ColdFusion2021\cfusion\wwwroot\ref\api\v1\toolbox\flex\csaw\access.cfc''"
 "Error","ajp-nio-127.0.0.1-8020-exec-213","12/08/25","21:34:06","V1 API","Element userACE is undefined in SESSION. The specific sequence of files included or processed is: D:\ColdFusion2021\cfusion\wwwroot\ref\api\v1\toolbox\flex\dashboard.cfc, line: 187"
+
+
+
+
+
+    // 4) Send email using built-in CF mail object (no external CFC)
+    try {
+      if ( len(toEmail) ) {
+        var m = new mail();
+        m.setTo( toEmail );
+        m.setFrom( "WorkhourEfficiencySupport@usps.gov" );
+        m.setSubject( "Flex Time Request Submitted (ID " & arguments.result.REQUESTID & ")" );
+        m.setType( "html" );
+
+        var body = "";
+        body &= "<p>Dear " & htmlEditFormat(submitterName) & ",</p>";
+        body &= "<p>Your flex-time request has been submitted.</p>";
+        body &= "<table border='1' cellpadding='4' cellspacing='0'>";
+        body &=   "<tr><th align='left'>Facility</th><td>" & htmlEditFormat(facilityName) &
+                  " (" & htmlEditFormat(arguments.payload.facility) & ")</td></tr>";
+        body &=   "<tr><th align='left'>Craft</th><td>" & htmlEditFormat(arguments.payload.craft) & "</td></tr>";
+        body &=   "<tr><th align='left'>LDC</th><td>" & htmlEditFormat(arguments.payload.operation & "") & "</td></tr>";
+        body &=   "<tr><th align='left'>Operation #</th><td>" & htmlEditFormat(arguments.payload.operationCode & "") & "</td></tr>";
+        body &=   "<tr><th align='left'>Hours/week</th><td>" & htmlEditFormat(arguments.payload.hours & "") & "</td></tr>";
+        body &=   "<tr><th align='left'>Start Week</th><td>" & htmlEditFormat(arguments.payload.wk_start & "") & "</td></tr>";
+        body &=   "<tr><th align='left'>End Week</th><td>" & htmlEditFormat(arguments.payload.wk_end & "") & "</td></tr>";
+        body &=   "<tr><th align='left'>Attachment Saved</th><td>" &
+                  ( arguments.result.ATTACHMENT_SAVED ? "Yes" : "No" ) & "</td></tr>";
+        body &= "</table>";
+        body &= "<p>Submitted by: " & htmlEditFormat(submitterName) &
+                " (" & htmlEditFormat(arguments.createdByVal) & ")</p>";
+
+        m.setBody( body );
+        m.send();
+
+        writeLog(
+          file = "application",
+          text = "Flex.post mail OK id=" & arguments.result.REQUESTID & " to=" & toEmail
+        );
+      } else {
+        writeLog(
+          file = "application",
+          text = "Flex.post: no recipient email for submitter " & arguments.createdByVal & "; skipping mail."
+        );
+      }
+    } catch (any __sendErr) {
+      writeLog(
+        file = "application",
+        text = "Flex.post mail exception id=" & arguments.result.REQUESTID &
+               " msg=" & __sendErr.message & " :: " & __sendErr.detail
+      );
+    }
