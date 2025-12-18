@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Flex Time Request</title>
+
+  <!-- Tailwind JIT -->
+  <script src="/ref/packages/tailwindcss.browser.4.min.js"></script>
+
+
+ <!-- Tailwind (internal with CDN fallback) -->
+<script>
+(function () {
+  var s = document.createElement('script');
+  s.src = '/ref/packages/tailwindcss.browser.4.min.js';
+  s.onerror = function () {
+    var cdn = document.createElement('script');
+    cdn.src = 'https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4';
+    document.head.appendChild(cdn);
+  };
+  document.head.appendChild(s);
+})();
+</script>
+
+
+  <!-- Flowbite -->
+  <link href="/ref/styles/flowbite.min.css" rel="stylesheet" />
+  <script src="/ref/packages/flowbite.min.js"></script>
+
+  <!-- Axios, Moment, Numeral -->
+  <script src="/ref/packages/axios.min.js"></script>
+  <script src="/ref/packages/moment.min.js" crossorigin="anonymous"></script>
+  <script src="/ref/packages/numeral.min.js" crossorigin="anonymous"></script>
+  <!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.30.1/moment.min.js" crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/numeral.js/2.0.6/numeral.min.js" crossorigin="anonymous"></script> -->
+
+  <!-- Global CSS -->
+  <link rel="stylesheet" href="/ref/styles/global.css" />
+
+  <!-- Vue & App JS -->
+  <script type="module" src="/ref/toolbox/flex/index.js"></script>
+
+  <style>
+    .usps-blue {
+      background-color: #004B87;
+    }
+
+    .btn-muted {
+      background-color: #3B6E8F;
+    }
+
+    .btn-muted:hover {
+      background-color: #345e78;
+      /* slightly darker for hover */
+    }
+
+ [v-cloak] {
+      display: none;
+    }
+
+
+  </style>
+
+
+</head>
+
+
+<body class="bg-gray-50 text-gray-800" >
+  <div id="app" class="max-w-xl mx-auto my-8 p-6 bg-white rounded-2xl shadow-lg" v-cloak>
+    <div class="bg-[#3B6E8F] text-white rounded-md shadow-md p-6 mb-6">
+      <h1 class="text-3xl font-semibold">📮 Flex Time Request</h1>
+    </div>
+    <form @submit.prevent="submitRequest" novalidate class="space-y-6">
+
+      <!-- Facility -->
+      <div>
+        <label for="facility" class="block text-sm font-semibold">Facility</label>
+        <select id="facility" v-model="form.facility" required
+          class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+          <option disabled value=""> Select your facility </option>
+          <option v-for="row in user.function4_access" :value="row.B_FIN_NBR">{{ row.B_FIN_NAME }} ({{ row.B_FIN_NBR }})
+          </option>
+        </select>
+        <p v-if="errors.facility" class="text-red-600 text-sm mt-1">{{ errors.facility }}</p>
+      </div>
+
+
+      <!-- Craft & LDC together in one 2-column grid -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <!-- Craft -->
+        <div>
+          <label for="craft" class="block text-sm font-semibold">Craft</label>
+          <select id="craft" v-model="form.craft" required
+            class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+            <option disabled value="">Craft</option>
+            <option value="clerk">Clerk</option>
+            <option value="mailhandler">Mailhandler</option>
+          </select>
+          <p v-if="errors.craft" class="text-red-600 text-sm mt-1">{{ errors.craft }}</p>
+        </div>
+
+        <!-- LDC -->
+        <div>
+          <label for="operation" class="block text-sm font-semibold">Labor Distribution Code (LDC)</label>
+          <select id="operation" v-model="form.operation" required
+            class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+            <option disabled value="">— Select LDC —</option>
+            <option v-for="l in filteredLDCs" :key="l.ldc" :value="l.ldc">
+              LDC {{ l.ldc }} — {{ l.name }}
+            </option>
+          </select>
+          <p v-if="errors.operation" class="text-red-600 text-sm mt-1">{{ errors.operation }}</p>
+        </div>
+      </div><!-- ←––– close the 2-column grid here –––→ -->
+
+      <!-- Operation Number (full width) -->
+      <div class="mt-6">
+        <label for="operationCode" class="block text-sm font-semibold">Operation Number</label>
+        <select id="operationCode" v-model="form.operationCode" required
+          class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+          <option disabled value="">— Select operation code —</option>
+          
+          
+          <!-- <option v-for="code in filteredOperationCodes" :key="code" :value="code">
+            {{ code }} — {{ operationsList.find(o=>o.code===code).name }}
+          </option> -->
+
+            <option
+        v-for="opt in filteredOperationOptions"
+        :key="opt.code + '|' + opt.name"
+        :value="opt.code + '-' + opt.name"
+      >
+        {{ opt.code }} — {{ opt.name }}
+      </option>
+          
+        </select>
+
+        
+        <p v-if="errors.operationCode" class="text-red-600 text-sm mt-1">{{ errors.operationCode }}</p>
+      </div>
+
+      <!-- Time requested (full width) -->
+      <div class="mt-6">
+        <label for="hours" class="block text-sm font-semibold">Daily Time requested (hrs.hundredths)</label>
+        <input id="hours" type="number" step="0.01" min="0.01" max="100" v-model.number="form.hours" required
+          class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" />
+        <p v-if="errors.hours" class="text-red-600 text-sm mt-1">{{ errors.hours }}</p>
+      </div>
+
+       <!-- Justification + tooltip -->
+<div class="mt-6 relative">
+  <label for="justification" class="block text-sm font-semibold inline-flex items-center gap-2">
+    Justification
+    <span
+      class="inline-flex items-center justify-center w-4 h-4 text-xs font-bold rounded-full bg-gray-200 text-gray-700 cursor-help"
+      data-tooltip-target="justif_tip" data-tooltip-placement="right">i</span>
+  </label>
+  <div
+    id="justif_tip"
+    role="tooltip"
+    class="absolute z-10 invisible inline-block px-3 py-2 text-sm font-medium text-white bg-gray-900 rounded-lg shadow-sm opacity-0 tooltip"
+  >
+    Provide a detailed explanation supporting the requested time value. Each request must be detailed in nature with a mathematical calculation which can be validated. Requests which are not detailed with supporting information will be denied..
+    <div class="tooltip-arrow" data-popper-arrow></div>
+  </div>
+
+  <textarea
+    id="justification"
+    v-model="form.justification"
+    :maxlength="1000"
+    rows="4"
+    required
+    placeholder="Provide a detailed explanation…"
+    class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+  ></textarea>
+  <p class="text-gray-500 text-xs mt-1">{{ form.justification.length }} / 1000</p>
+  <p v-if="errors.justification" class="text-red-600 text-sm mt-1">{{ errors.justification }}</p>
+</div>
+
+      <!-- Date Range stays in its own grid if you like two columns—but ensure it’s outside the first grid -->
+      <!-- <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 mt-6"> -->
+      <!-- Start Date -->
+      <!-- <div>
+      <label for="startDate" class="block text-sm font-semibold">Start Date</label>
+      <input id="startDate" type="date" v-model="form.startDate" required
+             class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" />
+      <p v-if="errors.startDate" class="text-red-600 text-sm mt-1">{{ errors.startDate }}</p>
+    </div> -->
+      <!-- End Date -->
+      <!-- <div>
+      <label for="endDate" class="block text-sm font-semibold">End Date</label>
+      <input id="endDate" type="date" v-model="form.endDate" required
+             class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" />
+      <p v-if="errors.endDate" class="text-red-600 text-sm mt-1">{{ errors.endDate }}</p>
+    </div>
+  </div> -->
+
+
+
+
+      <!-- Week Range Selection (paste instead of date inputs) -->
+      <div>
+        <label for="wk_start" class="block text-sm font-semibold">Start Week</label>
+        <select id="wk_start" v-model="form.wk_start" @change="onStartChange"
+          class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500">
+          <option disabled value="">-------------</option>
+          <option v-for="row in weekOptions" :value="row[2]">Week {{ row[1] }}, {{ row[2] }} (Saturday)</option>
+        </select>
+        <p v-if="errors.wk_start" class="text-red-600 text-sm mt-1">{{ errors.wk_start }}</p>
+      </div>
+
+
+
+  
+
+
+      <div>
+        <label for="wk_end" class="block text-sm font-semibold">End Week</label>
+        <select id="wk_end" v-model="form.wk_end" @change="onEndChange"
+          class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500">
+          <option disabled value="">-------------</option>
+          <option v-for="row in weekOptions" :value="row[3]">Week {{ row[1] }}, {{ row[3] }} (Friday)</option>
+        </select>
+        <p v-if="errors.wk_end" class="text-red-600 text-sm mt-1">{{ errors.wk_end}}</p>
+      </div>
+
+
+
+      <!-- <div>
+  <label for="wk_end" class="block text-sm font-semibold">End Week</label>
+  <select
+    id="wk_end"
+    v-model="form.endWeek"
+    @change="onEndChange"
+    class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500"
+  >
+    <option disabled value="">------------</option>
+    <option v-for="row in weekOptions" :value="row.B_FIN_NBR">{{ row.B_FIN_NAME }} ({{ row.B_FIN_NBR }})</option>
+
+  </select>
+  <p v-if="errors.endWeek" class="text-red-600 text-sm mt-1">{{ errors.endWeek }}</p>
+</div> -->
+
+
+
+      <!-- for hidden tag just below :  -->
+      <input type="hidden" id="fy_start" name="fy_start" />
+      <input type="hidden" id="fy_end" name="fy_end" />
+
+
+
+
+      <!-- Attachment -->
+      <div>
+        <label for="attachment" class="block text-sm font-semibold">Attachment (optional, ≤10MB)</label>
+        <input
+          id="attachment"
+          type="file"
+          accept=".pdf,.jpg,.jpeg,.png,.txt,.csv,application/pdf,image/jpeg,image/png,text/plain"
+          @change="onFileChange"
+          class="mt-1 block w-full text-sm text-gray-600 file:mr-4 file:py-2 file:px-4
+                file:rounded-lg file:border-0 file:text-sm file:font-semibold
+                file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
+
+        <p class="text-gray-500 text-xs mt-1">{{ form.fileName }}</p>
+
+        <p class="text-xs text-gray-500 mt-1">
+          Allowed: PDF, JPG, PNG, TXT, CSV (≤ 10 MB). For Word/Excel/PowerPoint, please upload as PDF.
+        </p>
+
+        <p v-if="errors.file" class="text-red-600 text-sm mt-1">{{ errors.file }}</p>
+      </div>
+
+      <!-- Submit -->
+      <button id="submitBtn" type="submit" class="w-full py-3 text-white font-bold rounded-lg shadow-md transition btn-muted">
+        Submit Request
+      </button>
+    </form>
+  </div>
+
+  <!-- Success Modal -->
+  <div id="submitModal" tabindex="-1" aria-hidden="true" 
+    class="fixed inset-0 flex items-center justify-center bg-black/50 hidden" v-cloak>
+    <div class="bg-white rounded-lg shadow-lg p-6 max-w-sm text-center">
+      <h2 class="text-xl font-semibold mb-4">✅ Request Submitted</h2>
+      <p class="mb-6">Your flex-time request has been submitted and is under review.</p>
+      <button id="closeModal" type="button" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+        Close
+      </button>
+    </div>
+  </div>
+</body>
+
+</html>
