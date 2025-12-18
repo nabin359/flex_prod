@@ -1,0 +1,68 @@
+// ----------------------------------------------------------------------
+// Helper: notify admin when a request is submitted (non-blocking)
+// ----------------------------------------------------------------------
+private void function sendAdminSubmitNotice(
+  required string createdByVal,
+  required struct payload,
+  required struct result
+) output="false" {
+
+  // Admin recipient(s) — can be comma-separated later if needed
+  var adminEmail = "nabin.timsina@usps.gov";
+  if ( !len(trim(adminEmail)) ) return;
+
+  // Optional facility display name
+  var facilityName = "";
+  try {
+    var qFac = queryExecute(
+      "
+        SELECT TOP 1 B_FIN_NAME
+        FROM PCSV_dw.dbo.var_base WITH (NOLOCK)
+        WHERE B_FIN_NBR = :fin
+      ",
+      { fin: { value=arguments.payload.facility, cfsqltype="cf_sql_varchar" } },
+      { datasource="pcsv_dw" }
+    );
+    if ( qFac.recordCount ) facilityName = qFac.B_FIN_NAME[1];
+  } catch (any __facErr) {
+    // ignore
+  }
+
+  var reqId = arguments.result.REQUESTID;
+  var subj  = "New Flex Time request submitted (ID " & reqId & ")";
+
+  // Build a clean HTML body
+  var facLine = htmlEditFormat(arguments.payload.facility & "");
+  if ( len(trim(facilityName)) ) facLine &= " - " & htmlEditFormat(facilityName);
+
+  var html = "";
+  html &= "<div style='font-family:Segoe UI,Arial,sans-serif; font-size:14px; color:#111827'>";
+  html &= "<p><b>A new Flex Time request was submitted.</b></p>";
+  html &= "<p><b>Request ID:</b> " & htmlEditFormat(reqId & "") & "<br>";
+  html &= "<b>Submitted By (ACE):</b> " & htmlEditFormat(arguments.createdByVal & "") & "<br>";
+  html &= "<b>Facility:</b> " & facLine & "<br>";
+  html &= "<b>Craft:</b> " & htmlEditFormat(arguments.payload.craft & "") & "<br>";
+  html &= "<b>LDC:</b> " & htmlEditFormat(arguments.payload.operation & "") & "<br>";
+  html &= "<b>Operation:</b> " & htmlEditFormat(arguments.payload.operationCode & "") & "<br>";
+  html &= "<b>Hours/Week:</b> " & htmlEditFormat(arguments.payload.hours & "") & "<br>";
+  html &= "<b>Weeks:</b> " & htmlEditFormat(arguments.payload.wk_start & "") & " to " & htmlEditFormat(arguments.payload.wk_end & "") & "</p>";
+
+  if ( len(trim(arguments.payload.justification & "")) ) {
+    html &= "<p><b>Justification:</b><br>" & htmlEditFormat(arguments.payload.justification & "") & "</p>";
+  }
+
+  html &= "<p><a href='https://eagnmnwbp161f.usps.gov/ref/toolbox/flex/admin.html'>Open Admin Dashboard</a></p>";
+  html &= "</div>";
+
+  // Send using your existing mail component (named args avoids positional mistakes)
+  try {
+    var mailer = createObject("component", "ref.api.v1.toolbox.flex.flexmail").init();
+    mailer.sendHtml(
+      toEmail  = adminEmail,
+      subject  = subj,
+      html     = html
+    );
+  } catch (any __sendErr) {
+    writeLog(file="application", text="sendAdminSubmitNotice mail exception id=" & reqId & " :: " & __sendErr.message & " :: " & __sendErr.detail);
+  }
+}
