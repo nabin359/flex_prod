@@ -1,74 +1,38 @@
-// ----------------------------------------------------------------------
-// Helper: notify admin when a request is submitted (non-blocking)
-// ----------------------------------------------------------------------
-private void function sendAdminSubmitNotice(
-  required string createdByVal,
-  required struct payload,
-  required struct result
-) output="false" {
+<!-- Time requested (full width) + tooltip image -->
+<div class="mt-6 relative">
+  <label for="hours" class="block text-sm font-semibold inline-flex items-center gap-2">
+    Daily Time requested (hrs.hundredths)
+    <span
+      class="inline-flex items-center justify-center w-4 h-4 text-xs font-bold rounded-full bg-gray-200 text-gray-700 cursor-help"
+      data-tooltip-target="hours_tip"
+      data-tooltip-placement="right"
+    >i</span>
+  </label>
 
-  var adminEmail = "nabin.timsina@usps.gov";
-  if ( !len(trim(adminEmail)) ) return;
+  <!-- Tooltip (image) -->
+  <div
+    id="hours_tip"
+    role="tooltip"
+    class="absolute z-10 invisible inline-block px-3 py-2 text-sm font-medium text-white bg-gray-900 rounded-lg shadow-sm opacity-0 tooltip"
+  >
+    <!-- IMPORTANT: update src to your actual image path -->
+    <img
+      src="/ref/toolbox/flex/assets/hours-hundredths-example.png"
+      alt="Hours hundredths example"
+      class="block w-72 h-auto rounded-md border border-white/10"
+    />
+    <div class="tooltip-arrow" data-popper-arrow></div>
+  </div>
 
-  // Optional facility display name
-  var facilityName = "";
-  try {
-    var qFac = queryExecute(
-      "
-        SELECT TOP 1 B_FIN_NAME
-        FROM PCSV_dw.dbo.var_base WITH (NOLOCK)
-        WHERE B_FIN_NBR = :fin
-      ",
-      { fin: { value = arguments.payload.facility, cfsqltype = "cf_sql_varchar" } },
-      { datasource = "pcsv_dw" }
-    );
-    if ( qFac.recordCount ) facilityName = qFac.B_FIN_NAME[1];
-  } catch (any __facErr) {
-    // ignore
-  }
-
-  var reqId = arguments.result.REQUESTID;
-  var subj  = "New Flex Time request submitted (ID " & reqId & ")";
-
-  // Build HTML
-  var facLine = htmlEditFormat( toString(arguments.payload.facility & "") );
-  if ( len(trim(facilityName)) ) {
-    facLine = facLine & " - " & htmlEditFormat(facilityName);
-  }
-
-  var html = "";
-  html = html & "<div style='font-family:Segoe UI,Arial,sans-serif; font-size:14px; color:#111827'>";
-  html = html & "<p><b>A new Flex Time request was submitted.</b></p>";
-  html = html & "<p>";
-  html = html & "<b>Request ID:</b> " & htmlEditFormat(reqId & "") & "<br>";
-  html = html & "<b>Submitted By (ACE):</b> " & htmlEditFormat(arguments.createdByVal & "") & "<br>";
-  html = html & "<b>Facility:</b> " & facLine & "<br>";
-  html = html & "<b>Craft:</b> " & htmlEditFormat(arguments.payload.craft & "") & "<br>";
-  html = html & "<b>LDC:</b> " & htmlEditFormat(arguments.payload.operation & "") & "<br>";
-  html = html & "<b>Operation:</b> " & htmlEditFormat(arguments.payload.operationCode & "") & "<br>";
-  html = html & "<b>Hours/Week:</b> " & htmlEditFormat(arguments.payload.hours & "") & "<br>";
-  html = html & "<b>Weeks:</b> " & htmlEditFormat(arguments.payload.wk_start & "") & " to " & htmlEditFormat(arguments.payload.wk_end & "");
-  html = html & "</p>";
-
-  if ( len(trim(arguments.payload.justification & "")) ) {
-    html = html & "<p><b>Justification:</b><br>" & htmlEditFormat(arguments.payload.justification & "") & "</p>";
-  }
-
-  html = html & "<p><a href='https://eagnmnwbp161f.usps.gov/ref/toolbox/flex/admin.html'>Open Admin Dashboard</a></p>";
-  html = html & "</div>";
-
-  // Send via your existing mail component
-  try {
-    var mailer = createObject("component", "ref.api.v1.toolbox.flex.flexmail").init();
-    mailer.sendHtml(
-      toEmail = adminEmail,
-      subject = subj,
-      html    = html
-    );
-  } catch (any __sendErr) {
-    writeLog(
-      file="application",
-      text="sendAdminSubmitNotice mail exception id=" & reqId & " :: " & __sendErr.message & " :: " & __sendErr.detail
-    );
-  }
-}
+  <input
+    id="hours"
+    type="number"
+    step="0.01"
+    min="0.01"
+    max="100"
+    v-model.number="form.hours"
+    required
+    class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+  />
+  <p v-if="errors.hours" class="text-red-600 text-sm mt-1">{{ errors.hours }}</p>
+</div>
